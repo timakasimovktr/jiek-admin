@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const message = `
 ❌ Ariza rad etildi. Nomer: ${bookingId} 
-👤 Маъсул ходим
+👤 Ma'sul xodim
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
 💬 Sabab: ${reason}
 🔴 Holat: Rad etilgan
