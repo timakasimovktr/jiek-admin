@@ -79,8 +79,8 @@ export default function AllCallsTable() {
   const direction = sortField === field && sortDirection === "asc" ? "desc" : "asc";
 
   const sorted = [...tableData].sort((a, b) => {
-    let aValue: any = a[field];
-    let bValue: any = b[field];
+    let aValue: number | string | undefined = a[field] as number | string | undefined;
+    let bValue: number | string | undefined = b[field] as number | string | undefined;
 
     if (field === "id") {
       aValue = Number(aValue);
@@ -97,8 +97,12 @@ export default function AllCallsTable() {
       bValue = statusOrder[b.status] || 99;
     }
 
-    if (aValue < bValue) return direction === "asc" ? -1 : 1;
-    if (aValue > bValue) return direction === "asc" ? 1 : -1;
+    // Ensure aValue and bValue are not undefined
+    const aComp = aValue ?? "";
+    const bComp = bValue ?? "";
+
+    if (aComp < bComp) return direction === "asc" ? -1 : 1;
+    if (aComp > bComp) return direction === "asc" ? 1 : -1;
     return 0;
   });
 
@@ -325,20 +329,23 @@ export default function AllCallsTable() {
                      <Button
                       size="xs"
                       variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      className={order.status === "approved" ? "opacity-50 cursor-not-allowed" : ""}
+                      disabled={order.status === "approved"}
+                      onClick={() => {
                         setSelectedOrder(order);
                         setModalType("save");
                         setApprovedDays(order.visit_type === "short" ? 1 : order.visit_type === "long" ? 2 : 3);
                       }}
+
                     >
                       Изменить
                     </Button>
                     <Button
                       size="xs"
                       variant="green"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      className={order.status === "approved" ? "opacity-50 cursor-not-allowed" : ""}
+                      disabled={order.status === "approved"}
+                      onClick={() => {
                         setSelectedOrder(order);
                         setModalType("view");
                       }}
@@ -348,8 +355,8 @@ export default function AllCallsTable() {
                     <Button
                       size="xs"
                       variant="red"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      disabled={order.status === "canceled"}
+                      onClick={() => {
                         setSelectedOrder(order);
                         setModalType("reject");
                         setRejectionReason("Qoidabuzarlik uchun!");
@@ -360,8 +367,8 @@ export default function AllCallsTable() {
                    
                   </TableCell>
                   <TableCell className="px-5 py-3 text-black dark:text-white">
-                    {order.end_datetime && order.status !== "canceled"
-                      ? new Date(order.end_datetime).toLocaleDateString("ru-RU")
+                    {order.start_datetime && order.status !== "canceled"
+                      ? new Date(order.start_datetime).toLocaleDateString("ru-RU")
                       : "Нет данных"}
                   </TableCell>
                   <TableCell className="px-5 py-3">
@@ -413,7 +420,7 @@ export default function AllCallsTable() {
 
             {modalType === "view" && (
               <div className="flex flex-col gap-2">
-                <label className="font-medium text-black dark:text-white">Дата свидания (минимум через 7 дней):</label>
+                <label className="font-medium text-black dark:text-white">Дата свидания (минимум через 10 дней):</label>
                 <input
                   type="date"
                   className="border p-2 rounded w-full text-black dark:text-white"

@@ -17,7 +17,6 @@ import pool from "@/lib/db";
 import axios from "axios";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 export async function POST(req: NextRequest) {
     try {
@@ -33,7 +32,15 @@ export async function POST(req: NextRequest) {
             [bookingId]
         );
 
-        const bookingRows = rows as any[];
+        type BookingRow = {
+            visit_type: string;
+            prisoner_name: string;
+            created_at: string;
+            relatives: string;
+            telegram_chat_id: string | null;
+        };
+
+        const bookingRows = rows as BookingRow[];
         if (bookingRows.length === 0) {
             return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
         }

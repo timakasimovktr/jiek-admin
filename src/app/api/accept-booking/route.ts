@@ -14,11 +14,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Получаем данные заявки
+    type Booking = {
+      visit_type: string;
+      prisoner_name: string;
+      created_at: string;
+      relatives: string;
+      telegram_chat_id?: string;
+    };
+    
     const [rows] = await pool.query(
       "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id=?",
       [bookingId]
     );
-    const bookingRows = rows as any[];
+    const bookingRows = rows as Booking[];
     if (bookingRows.length === 0) {
       return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
     }
@@ -39,7 +47,8 @@ export async function POST(req: NextRequest) {
       [startDateStr, startDateStr, bookingId]
     );
 
-    const updateResult = result as any;
+    type UpdateResult = { affectedRows: number };
+    const updateResult = result as UpdateResult;
     if (updateResult.affectedRows === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }

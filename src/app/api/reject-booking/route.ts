@@ -18,7 +18,13 @@ export async function POST(req: NextRequest) {
       "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id=?",
       [bookingId]
     );
-    const bookingRows = rows as any[];
+    type BookingRow = {
+      prisoner_name: string;
+      created_at: string | Date;
+      relatives: string;
+      telegram_chat_id?: string;
+    };
+    const bookingRows = rows as BookingRow[];
     if (bookingRows.length === 0) {
       return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
     }
@@ -31,12 +37,12 @@ export async function POST(req: NextRequest) {
       [reason, bookingId]
     );
 
-    if ((result as any).affectedRows === 0) {
+    type UpdateResult = { affectedRows: number };
+    const updateResult = result as UpdateResult;
+
+    if (updateResult.affectedRows === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
-
-    // Формируем сообщение
-    const relativeName = JSON.parse(booking.relatives)[0]?.full_name || "N/A";
 
     const message = `
 ❌ Ariza rad etildi. Nomer: ${bookingId} 

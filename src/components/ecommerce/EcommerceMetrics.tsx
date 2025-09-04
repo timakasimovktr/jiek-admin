@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import Badge from "../ui/badge/Badge";
 import { GroupIcon } from "@/icons";
 import axios from "axios";
 
