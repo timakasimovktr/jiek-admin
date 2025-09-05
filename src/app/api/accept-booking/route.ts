@@ -3,7 +3,6 @@ import pool from "@/lib/db";
 import axios from "axios";
 
 const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCE";
-const ADMIN_CHAT_ID = -1003014693175;
 
 export async function POST(req: NextRequest) {
   try {
