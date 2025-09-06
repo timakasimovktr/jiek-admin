@@ -63,6 +63,13 @@ export async function POST(req: NextRequest) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: booking.telegram_chat_id,
         text: message,
+        reply_markup: {
+          keyboard: [
+            [{ text: "Yangi ariza yuborish" }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false
+        }
       });
     }
 
