@@ -1,5 +1,3 @@
-// api/accept-batch/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (pendingRows.length === 0) {
-      return NextResponse.json({ message: "Нет pending заявок" }, { status: 200 });
+      return NextResponse.json({ message: "Нет заявок в ожидании" }, { status: 200 });
     }
 
     pendingRows.sort((a, b) => {
@@ -59,6 +57,8 @@ export async function POST(req: NextRequest) {
     minDate.setDate(minDate.getDate() + 10);
     minDate.setHours(0, 0, 0, 0);
 
+    const assignedBookings: { bookingId: number; startDate: string; roomId: number }[] = [];
+
     for (const booking of pendingRows) {
       const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
       const start = new Date(minDate);
@@ -66,7 +66,6 @@ export async function POST(req: NextRequest) {
       let assignedRoomId: number | null = null;
 
       for (let tries = 0; tries < 60; tries++) {
-        // Проверяем каждую комнату (от 1 до rooms)
         for (let roomId = 1; roomId <= rooms; roomId++) {
           let canFit = true;
 
@@ -109,26 +108,28 @@ export async function POST(req: NextRequest) {
         [startStr, startStr, duration, assignedRoomId, booking.id]
       );
 
+      assignedBookings.push({ bookingId: booking.id, startDate: startStr, roomId: assignedRoomId });
+
       const relatives: Relative[] = JSON.parse(booking.relatives);
-      const relativeName = relatives[0]?.full_name || "N/A";
+      const relativeName = relatives[0]?.full_name || "Н/Д";
 
       const messageGroup = `
-🎉 Ariza tasdiqlangan. Nomer: ${booking.id} 
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⌚ Kelishi sana: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-🟢 Holat: Tasdiqlangan
-🚪 Xona: ${assignedRoomId}
+🎉 Заявление подтверждено. Номер: ${booking.id} 
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Дата посещения: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+🟢 Статус: Подтверждено
+🚪 Комната: ${assignedRoomId}
 `;
 
       const messageBot = `
-🎉 Ariza tasdiqlangan. Nomer: ${booking.id} 
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⌚ Kelishi sana: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⏲️ Turi: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
-🟢 Holat: Tasdiqlangan
-🚪 Xona: ${assignedRoomId}
+🎉 Заявление подтверждено. Номер: ${booking.id} 
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Дата посещения: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⏲️ Тип: ${booking.visit_type === "long" ? "2-дневный" : booking.visit_type === "short" ? "1-дневный" : "3-дневный"}
+🟢 Статус: Подтверждено
+🚪 Комната: ${assignedRoomId}
 `;
 
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -144,9 +145,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, assignedBookings });
   } catch (err) {
-    console.error("DB error:", err);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
+    console.error("Ошибка БД:", err);
+    return NextResponse.json({ error: "Ошибка БД" }, { status: 500 });
   }
 }

@@ -1,5 +1,3 @@
-// api/accept-booking/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -42,15 +40,49 @@ export async function POST(req: NextRequest) {
     const daysToAdd = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
 
     const startDate = new Date(assignedDate);
+    startDate.setHours(0, 0, 0, 0);
     const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+
+    const [settingsRows] = await pool.query<RowDataPacket[]>("SELECT value FROM settings WHERE `key` = 'rooms_count'");
+    const rooms = Number(settingsRows[0]?.value) || 10;
+    let assignedRoomId: number | null = null;
+
+    for (let roomId = 1; roomId <= rooms; roomId++) {
+      let canFit = true;
+      for (let d = 0; d < daysToAdd; d++) {
+        const day = new Date(startDate);
+        day.setDate(day.getDate() + d);
+        const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
+        const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+
+        const [occupiedRows] = await pool.query<RowDataPacket[]>(
+          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ?",
+          [roomId, dayEnd, dayStart]
+        );
+
+        if (occupiedRows[0].cnt > 0) {
+          canFit = false;
+          break;
+        }
+      }
+      if (canFit) {
+        assignedRoomId = roomId;
+        break;
+      }
+    }
+
+    if (!assignedRoomId) {
+      return NextResponse.json({ error: "Нет доступных комнат на выбранные даты" }, { status: 400 });
+    }
 
     const [result] = await pool.query(
       `UPDATE bookings 
        SET status = 'approved', 
            start_datetime = ?, 
-           end_datetime = DATE_ADD(?, INTERVAL ? DAY) 
+           end_datetime = DATE_ADD(?, INTERVAL ? DAY),
+           room_id = ?
        WHERE id = ?`,
-      [startDateStr, startDateStr, daysToAdd, bookingId]
+      [startDateStr, startDateStr, daysToAdd, assignedRoomId, bookingId]
     );
 
     const updateResult = result as { affectedRows: number };
@@ -59,23 +91,25 @@ export async function POST(req: NextRequest) {
     }
 
     const relatives: Relative[] = JSON.parse(booking.relatives);
-    const relativeName = relatives[0]?.full_name || "N/A";
+    const relativeName = relatives[0]?.full_name || "Н/Д";
 
     const messageGroup = `
-🎉 Ariza tasdiqlangan. Nomer: ${bookingId} 
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⌚ Kelishi sana: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-🟢 Holat: Tasdiqlangan
+🎉 Заявление подтверждено. Номер: ${bookingId} 
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Дата посещения: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+🟢 Статус: Подтверждено
+🚪 Комната: ${assignedRoomId}
 `;
 
     const messageBot = `
-🎉 Ariza tasdiqlangan. Nomer: ${bookingId} 
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⌚ Kelishi sana: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-⏲️ Turi: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
-🟢 Holat: Tasdiqlangan
+🎉 Заявление подтверждено. Номер: ${bookingId} 
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Дата посещения: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⏲️ Тип: ${booking.visit_type === "long" ? "2-дневный" : booking.visit_type === "short" ? "1-дневный" : "3-дневный"}
+🟢 Статус: Подтверждено
+🚪 Комната: ${assignedRoomId}
 `;
 
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -92,7 +126,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DB error:", err);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
+    console.error("Ошибка БД:", err);
+    return NextResponse.json({ error: "Ошибка БД" }, { status: 500 });
   }
 }

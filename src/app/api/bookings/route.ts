@@ -3,7 +3,7 @@ import pool from "@/lib/db";
 
 export async function GET() {
   try {
-    const [rows] = await pool.query("SELECT * FROM bookings WHERE relatives != '[]' ORDER BY id DESC");
+    const [rows] = await pool.query("SELECT * FROM bookings WHERE relatives != '[]' AND status != 'canceled' ORDER BY id DESC");
     return NextResponse.json(rows);
   } catch (err) {
     console.error(err);
