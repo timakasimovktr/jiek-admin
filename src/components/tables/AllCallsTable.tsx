@@ -227,30 +227,6 @@ export default function AllCallsTable() {
                     }),
                   ],
                 }),
-                ...(order.start_datetime
-                  ? [new DocxTableRow({
-                      children: [
-                        new DocxTableCell({
-                          children: [new Paragraph({ children: [new TextRun({ text: "Начало посещения", bold: true, size: 20, font: "Arial" })] })],
-                        }),
-                        new DocxTableCell({
-                          children: [new Paragraph({ children: [new TextRun({ text: new Date(order.start_datetime).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" }), size: 20, font: "Arial" })] })],
-                        }),
-                      ],
-                    })]
-                  : []),
-                ...(order.end_datetime
-                  ? [new DocxTableRow({
-                      children: [
-                        new DocxTableCell({
-                          children: [new Paragraph({ children: [new TextRun({ text: "Окончание посещения", bold: true, size: 20, font: "Arial" })] })],
-                        }),
-                        new DocxTableCell({
-                          children: [new Paragraph({ children: [new TextRun({ text: new Date(order.end_datetime).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" }), size: 20, font: "Arial" })] })],
-                        }),
-                      ],
-                    })]
-                  : []),
                 ...(order.rejection_reason
                   ? [new DocxTableRow({
                       children: [
@@ -550,8 +526,8 @@ export default function AllCallsTable() {
                       </Button>
                     </TableCell>
                     <TableCell className="px-5 py-3 text-black dark:text-white">
-                      {order.start_datetime && order.status !== "canceled" && order.status !== "rejected"
-                        ? new Date(order.start_datetime).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })
+                      {order.start_datetime && order.status === "approved"
+                        ? `${new Date(order.start_datetime).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })} - ${new Date(new Date(order.start_datetime).getTime() + (order.visit_type === "short" ? 1 : order.visit_type === "long" ? 2 : 3) * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
                         : "Нет данных"}
                     </TableCell>
                     <TableCell className="px-5 py-3">
