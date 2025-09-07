@@ -94,23 +94,23 @@ export async function POST(req: NextRequest) {
     const relativeName = relatives[0]?.full_name || "Н/Д";
 
     const messageGroup = `
-🎉 Заявление подтверждено. Номер: ${bookingId} 
-👤 Заявитель: ${relativeName}
-📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Дата посещения: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-🟢 Статус: Подтверждено
-🚪 Комната: ${assignedRoomId}
-`;
+    🎉 Ariza tasdiqlandi. Raqam: ${bookingId} 
+    👤 Arizachi: ${relativeName}
+    📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+    ⌚ Tashrif sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+    🟢 Holat: Tasdiqlandi
+    🚪 Xona: ${assignedRoomId}
+    `;
 
     const messageBot = `
-🎉 Заявление подтверждено. Номер: ${bookingId} 
-👤 Заявитель: ${relativeName}
-📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Дата посещения: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⏲️ Тип: ${booking.visit_type === "long" ? "2-дневный" : booking.visit_type === "short" ? "1-дневный" : "3-дневный"}
-🟢 Статус: Подтверждено
-🚪 Комната: ${assignedRoomId}
-`;
+    🎉 Ariza tasdiqlandi. Raqam: ${bookingId} 
+    👤 Arizachi: ${relativeName}
+    📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+    ⌚ Tashrif sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+    ⏲️ Turi: ${booking.visit_type === "long" ? "2 kunlik" : booking.visit_type === "short" ? "1 kunlik" : "3 kunlik"}
+    🟢 Holat: Tasdiqlandi
+    🚪 Xona: ${assignedRoomId}
+    `;
 
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       chat_id: ADMIN_CHAT_ID,

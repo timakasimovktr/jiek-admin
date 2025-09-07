@@ -306,18 +306,7 @@ export default function AllCallsTable() {
         {
           properties: {},
           children: pending.flatMap((order) => [
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Заявление №${order.id}`,
-                  bold: true,
-                  size: 24,
-                  font: "Arial",
-                }),
-              ],
-              spacing: { after: 200 },
-              alignment: "center",
-            }),
+            
             new DocxTable({
               width: { size: 100, type: WidthType.PERCENTAGE },
               rows: [
