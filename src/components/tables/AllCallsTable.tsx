@@ -30,6 +30,16 @@ interface Order {
   rejection_reason?: string;
 }
 
+interface Booking {
+  id: number;
+  full_name: string;
+  passport: string;
+  visit_type: "short" | "long" | "extra";
+  status: string;
+  assigned_date_start?: string;
+  assigned_date_end?: string;
+}
+
 export default function AllCallsTable() {
   const [tableData, setTableData] = useState<Order[]>([]);
   const [sortField, setSortField] = useState<keyof Order | null>(null);
@@ -39,6 +49,8 @@ export default function AllCallsTable() {
   const [assignedDate, setAssignedDate] = useState("");
   const [rejectionReason, setRejectionReason] = useState("Qoidabuzarlik uchun!");
   const [approvedDays, setApprovedDays] = useState<number>(1);
+  const [bookings, setBookings] = useState<Booking[]>([]);  
+  const [rooms, setRooms] = useState<number>(1);
 
   const statusMap: Record<string, string> = {
     approved: "Принято",
@@ -158,6 +170,37 @@ export default function AllCallsTable() {
     }
   };
 
+  const fetchBookings = async () => {
+    const { data } = await axios.get("/api/bookings");
+    setBookings(data);
+  };
+
+  const handleAutoAccept = async () => {
+    try {
+      const { data } = await axios.post("/api/auto-accept", {
+        roomsCount: rooms,
+      });
+
+      console.log("Schedule:", data.schedule);
+
+      // перезагружаем заявки
+      await fetchBookings();
+
+      // тут же можно сделать пачку PDF (если хочешь)
+      const pdf = new jsPDF();
+      data.schedule.forEach((s, i) => {
+        pdf.text(
+          `${i + 1}. Заявка #${s.bookingId}\nДата: ${s.startDate} - ${s.endDate}`,
+          10,
+          20 + i * 20
+        );
+      });
+      pdf.save("approved-bookings.pdf");
+    } catch (err) {
+      console.error("Auto-accept error:", err);
+    }
+  };
+
   // Печать PDF
   // PDF chiqarish
   const handlePrint = (order: Order) => {
@@ -217,7 +260,31 @@ export default function AllCallsTable() {
   minDate.setDate(minDate.getDate() + 10);
   const minDateStr = minDate.toISOString().split("T")[0];
 
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
   return (
+    <>
+    {/* панель действий */}
+    <div className="flex justify-between mb-6">
+      <div className="">Действия для заполнения</div>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          className="border p-2 rounded-xl w-[100px]"
+          placeholder="Комнаты"
+          value={rooms}
+          onChange={(e) => setRooms(Number(e.target.value))}
+        />
+        <Button size="xs" variant="outline">
+          Печатать заявления
+        </Button>
+        <Button size="xs" variant="green" onClick={handleAutoAccept}>
+          Принять заявления
+        </Button>
+      </div>
+    </div>
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div className="max-w-full overflow-x-auto">
         <div className="min-w-[1102px]">
@@ -492,5 +559,6 @@ export default function AllCallsTable() {
         </div>
       )}  
     </div>
+    </>
   );
 }
