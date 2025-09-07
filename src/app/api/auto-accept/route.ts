@@ -1,7 +1,7 @@
 import pool from "@/lib/db";
-import { Telegraf } from "telegraf";
+import axios from "axios";
 
-const bot = new Telegraf(process.env.BOT_TOKEN as string);
+const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
 
 // утилита: добавляем дни
 function addDays(date: Date, days: number) {
@@ -72,7 +72,9 @@ function autoAssign(bookings: Booking[], rooms: number, startDate: Date) {
   return schedule;
 }
 
-export default async function handler(req, res) {
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -102,10 +104,15 @@ export default async function handler(req, res) {
       );
 
       // уведомление пользователю
-      await bot.telegram.sendMessage(
-        s.telegram_id,
-        `✅ Ваша заявка одобрена.\nДата: ${s.startDate} - ${s.endDate}`
-      );
+      // await bot.telegram.sendMessage(
+      //   s.telegram_id,
+      //   `✅ Ваша заявка одобрена.\nДата: ${s.startDate} - ${s.endDate}`
+      // );
+
+      await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        chat_id: s.telegram_id,
+        text: `✅ Sizning arizangiz ma'qullandi.\nSana: ${s.startDate} - ${s.endDate}`,
+      });
     }
 
     res.json({ success: true, schedule });
