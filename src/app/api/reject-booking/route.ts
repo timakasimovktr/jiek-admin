@@ -5,7 +5,7 @@ import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
 
-const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
+const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
 const ADMIN_CHAT_ID = "-1003014693175";
 
 interface BookingRow extends RowDataPacket {
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     💬 Sabab: ${reason}
     🔴 Holat: Rad etilgan
     `;
-    
+
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       chat_id: ADMIN_CHAT_ID,
       text: message,
