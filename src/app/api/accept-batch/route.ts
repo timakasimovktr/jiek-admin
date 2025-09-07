@@ -51,10 +51,11 @@ export async function POST(req: NextRequest) {
 
     for (const booking of pendingRows) {
       const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      const minDate = new Date();
+      const createdDate = new Date(booking.created_at);
+      const minDate = new Date(createdDate);
       minDate.setDate(minDate.getDate() + 10);
       minDate.setHours(0, 0, 0, 0);
-      const start = new Date(minDate);
+      let start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
 
