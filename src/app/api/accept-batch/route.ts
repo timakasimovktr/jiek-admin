@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       const minDate = new Date(createdDate);
       minDate.setDate(minDate.getDate() + 10);
       minDate.setHours(0, 0, 0, 0);
-      let start = new Date(minDate);
+      const start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
 
