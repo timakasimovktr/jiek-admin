@@ -529,13 +529,6 @@ export default function AllCallsTable() {
                       {order.start_datetime && order.status === "approved"
                         ? `${new Date(
                               new Date(order.start_datetime).getTime() + 1 * 24 * 60 * 60 * 1000 // +1 день только к начальной
-                            ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })} - ${new Date(
-                              new Date(order.start_datetime).getTime() +
-                                (order.visit_type === "short"
-                                  ? 1
-                                  : order.visit_type === "long"
-                                  ? 2
-                                  : 3) * 24 * 60 * 60 * 1000
                             ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
                         : "Нет данных"}
 
