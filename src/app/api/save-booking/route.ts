@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(rows[0].created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
 ⏲️ Yangi tur: ${approvedDays}-kunlik
-🟡 Holat: Yangilangan
+🔵 Holat: Yangilangan
 `;
 
     const messageBot = `

@@ -311,9 +311,6 @@ export default function AllCallsTable() {
         {
           properties: {},
           children: pending.flatMap((order) => {
-            const prelimDate = new Date();
-            prelimDate.setDate(prelimDate.getDate() + 10);
-
             return [
               new Paragraph({
                 children: [
@@ -356,17 +353,7 @@ export default function AllCallsTable() {
                   }),
                 ],
                 spacing: { after: 100 },
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `Taxminiy uchrashuv boshlanishi: ${prelimDate.toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
-                    size: 24,
-                    font: "Arial",
-                  }),
-                ],
-                spacing: { after: 100 },
-              }),
+              }),             
               new Paragraph({
                 children: [
                   new TextRun({
