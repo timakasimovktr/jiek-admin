@@ -1,9 +1,19 @@
+// api/reject-booking/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
+import { RowDataPacket } from "mysql2/promise";
 
 const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
-const ADMIN_CHAT_ID = -1003014693175;
+const ADMIN_CHAT_ID = "-1003014693175";
+
+interface BookingRow extends RowDataPacket {
+  prisoner_name: string;
+  created_at: string;
+  relatives: string;
+  telegram_chat_id?: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,33 +23,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bookingId и reason обязательны" }, { status: 400 });
     }
 
-    // Получаем данные заявки
-    const [rows] = await pool.query(
-      "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id=?",
+    const [rows] = await pool.query<BookingRow[]>(
+      "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ?",
       [bookingId]
     );
-    type BookingRow = {
-      prisoner_name: string;
-      created_at: string | Date;
-      relatives: string;
-      telegram_chat_id?: string;
-    };
-    const bookingRows = rows as BookingRow[];
-    if (bookingRows.length === 0) {
+
+    if (rows.length === 0) {
       return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
     }
 
-    const booking = bookingRows[0];
+    const booking = rows[0];
 
-    // Обновляем заявку в базе
     const [result] = await pool.query(
-      "UPDATE bookings SET status='canceled', rejection_reason=? WHERE id=?",
+      "UPDATE bookings SET status = 'rejected', rejection_reason = ? WHERE id = ?",
       [reason, bookingId]
     );
 
-    type UpdateResult = { affectedRows: number };
-    const updateResult = result as UpdateResult;
-
+    const updateResult = result as { affectedRows: number };
     if (updateResult.affectedRows === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
@@ -52,13 +52,11 @@ export async function POST(req: NextRequest) {
 🔴 Holat: Rad etilgan
 `;
 
-    // Отправляем в админ-группу
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       chat_id: ADMIN_CHAT_ID,
       text: message,
     });
 
-    // Если есть telegram_chat_id пользователя, отправляем и ему
     if (booking.telegram_chat_id) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: booking.telegram_chat_id,

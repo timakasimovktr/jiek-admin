@@ -1,8 +1,25 @@
+// api/accept-booking/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
+import { RowDataPacket } from "mysql2/promise";
 
 const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
+const ADMIN_CHAT_ID = "-1003014693175";
+
+interface Relative {
+  full_name: string;
+  passport: string;
+}
+
+interface Booking extends RowDataPacket {
+  visit_type: "short" | "long" | "extra";
+  prisoner_name: string;
+  created_at: string;
+  relatives: string;
+  telegram_chat_id?: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,50 +29,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bookingId и assignedDate обязательны" }, { status: 400 });
     }
 
-    // Получаем данные заявки
-    type Booking = {
-      visit_type: string;
-      prisoner_name: string;
-      created_at: string;
-      relatives: string;
-      telegram_chat_id?: string;
-    };
-    
-    const [rows] = await pool.query(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id=?",
+    const [rows] = await pool.query<Booking[]>(
+      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ?",
       [bookingId]
     );
-    const bookingRows = rows as Booking[];
-    if (bookingRows.length === 0) {
+
+    if (rows.length === 0) {
       return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
     }
 
-    const booking = bookingRows[0];
-    const daysToAdd = booking.visit_type === "short" ? 1 : 2;
+    const booking = rows[0];
+    const daysToAdd = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
 
     const startDate = new Date(assignedDate);
-    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " "); // YYYY-MM-DD HH:MM:SS
+    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
 
-    // Обновляем заявку в базе
     const [result] = await pool.query(
       `UPDATE bookings 
-       SET status='approved', 
-           start_datetime=?, 
-           end_datetime=DATE_ADD(?, INTERVAL ${daysToAdd} DAY) 
-       WHERE id=?`,
-      [startDateStr, startDateStr, bookingId]
+       SET status = 'approved', 
+           start_datetime = ?, 
+           end_datetime = DATE_ADD(?, INTERVAL ? DAY) 
+       WHERE id = ?`,
+      [startDateStr, startDateStr, daysToAdd, bookingId]
     );
 
-    type UpdateResult = { affectedRows: number };
-    const updateResult = result as UpdateResult;
+    const updateResult = result as { affectedRows: number };
     if (updateResult.affectedRows === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
 
-    // Формируем сообщение
-    const relativeName = JSON.parse(booking.relatives)[0]?.full_name || "N/A";
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToAdd);
+    const relatives: Relative[] = JSON.parse(booking.relatives);
+    const relativeName = relatives[0]?.full_name || "N/A";
 
     const messageGroup = `
 🎉 Ariza tasdiqlangan. Nomer: ${bookingId} 
@@ -74,17 +78,15 @@ export async function POST(req: NextRequest) {
 🟢 Holat: Tasdiqlangan
 `;
 
-    // Отправляем сообщение в админ-группу
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      chat_id: "-1003014693175",
-      text: messageGroup
+      chat_id: ADMIN_CHAT_ID,
+      text: messageGroup,
     });
 
-    // Отправляем сообщение пользователю
     if (booking.telegram_chat_id) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: booking.telegram_chat_id,
-        text: messageBot
+        text: messageBot,
       });
     }
 
