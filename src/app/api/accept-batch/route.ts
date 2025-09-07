@@ -5,8 +5,8 @@ import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
 
-const BOT_TOKEN = "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
-const ADMIN_CHAT_ID = "-1003014693175";
+const BOT_TOKEN = process.env.BOT_TOKEN || "8327319465:AAEdZDOtad6b6nQ-xN9hyabfv2CmQlIQCEo";
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || "-1003014693175";
 
 interface Relative {
   full_name: string;
@@ -49,51 +49,64 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Нет pending заявок" }, { status: 200 });
     }
 
+    pendingRows.sort((a, b) => {
+      const durationA = a.visit_type === "short" ? 1 : a.visit_type === "long" ? 2 : 3;
+      const durationB = b.visit_type === "short" ? 1 : b.visit_type === "long" ? 2 : 3;
+      return durationA - durationB;
+    });
+
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() + 10);
+    minDate.setHours(0, 0, 0, 0);
+
     for (const booking of pendingRows) {
       const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-
-      const minDate = new Date();
-      minDate.setDate(minDate.getDate() + 10);
-      minDate.setHours(0, 0, 0, 0);
-
       const start = new Date(minDate);
       let found = false;
+      let assignedRoomId: number | null = null;
 
       for (let tries = 0; tries < 60; tries++) {
-        let free = true;
+        // Проверяем каждую комнату (от 1 до rooms)
+        for (let roomId = 1; roomId <= rooms; roomId++) {
+          let canFit = true;
 
-        for (let d = 0; d < duration; d++) {
-          const day = new Date(start);
-          day.setDate(day.getDate() + d);
-          const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-          const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+          for (let d = 0; d < duration; d++) {
+            const day = new Date(start);
+            day.setDate(day.getDate() + d);
+            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
+            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
 
-          const [occupiedRows] = await pool.query<CountRow[]>(
-            "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND start_datetime <= ? AND end_datetime >= ?",
-            [dayEnd, dayStart]
-          );
+            const [occupiedRows] = await pool.query<CountRow[]>(
+              "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ?",
+              [roomId, dayEnd, dayStart]
+            );
 
-          if (occupiedRows[0].cnt >= rooms) {
-            free = false;
+            if (occupiedRows[0].cnt > 0) {
+              canFit = false;
+              break;
+            }
+          }
+
+          if (canFit) {
+            found = true;
+            assignedRoomId = roomId;
             break;
           }
         }
 
-        if (free) {
-          found = true;
-          break;
-        }
-
+        if (found) break;
         start.setDate(start.getDate() + 1);
       }
 
-      if (!found) continue;
+      if (!found || assignedRoomId === null) {
+        console.warn(`Не удалось найти свободные даты или комнату для заявки ${booking.id}`);
+        continue;
+      }
 
       const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
-
       await pool.query(
-        "UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = DATE_ADD(?, INTERVAL ? DAY) WHERE id = ?",
-        [startStr, startStr, duration, booking.id]
+        "UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = DATE_ADD(?, INTERVAL ? DAY), room_id = ? WHERE id = ?",
+        [startStr, startStr, duration, assignedRoomId, booking.id]
       );
 
       const relatives: Relative[] = JSON.parse(booking.relatives);
@@ -105,6 +118,7 @@ export async function POST(req: NextRequest) {
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
 ⌚ Kelishi sana: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
 🟢 Holat: Tasdiqlangan
+🚪 Xona: ${assignedRoomId}
 `;
 
       const messageBot = `
@@ -114,6 +128,7 @@ export async function POST(req: NextRequest) {
 ⌚ Kelishi sana: ${start.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
 ⏲️ Turi: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
 🟢 Holat: Tasdiqlangan
+🚪 Xona: ${assignedRoomId}
 `;
 
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {

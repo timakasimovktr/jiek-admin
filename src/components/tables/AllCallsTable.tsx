@@ -12,7 +12,8 @@ import {
 import Badge from "../ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import axios from "axios";
-import jsPDF from "jspdf";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { saveAs } from "file-saver";
 
 interface Relative {
   full_name: string;
@@ -44,10 +45,10 @@ export default function AllCallsTable() {
   const [roomsCount, setRoomsCount] = useState<number>(0);
 
   const statusMap: Record<string, string> = {
-    approved: "Принято",
-    pending: "В ожидании",
-    rejected: "Отклонено",
-    canceled: "Отменено",
+    approved: "Tasdiqlangan",
+    pending: "Kutishda",
+    rejected: "Rad etilgan",
+    canceled: "Bekor qilingan",
   };
 
   useEffect(() => {
@@ -177,60 +178,125 @@ export default function AllCallsTable() {
     }
   };
 
-  const addPdfLine = (doc: jsPDF, y: number, label: string, value?: string): number => {
-    const text = `${label}: ${value || "-"}`;
-    const wrapped = doc.splitTextToSize(text, 170);
-    doc.text(wrapped, 20, y);
-    return y + wrapped.length * 8;
-  };
-
-  const addPdfVisitors = (doc: jsPDF, y: number, relatives: Relative[]): number => {
-    doc.setFont("helvetica", "bold");
-    doc.text("Tashrif buyuruvchilar:", 20, y);
-    doc.setFont("helvetica", "normal");
-    y += 8;
-
-    if (Array.isArray(relatives) && relatives.length > 0) {
-      relatives.forEach((r, i) => {
-        const text = `${i + 1}) ${r.full_name}, Pasport: ${r.passport}`;
-        const wrapped = doc.splitTextToSize(text, 160);
-        doc.text(wrapped, 30, y);
-        y += wrapped.length * 8;
-      });
-    } else {
-      doc.text("Ma'lumot yo‘q", 30, y);
-      y += 8;
-    }
-    return y;
-  };
-
   const handlePrint = (order: Order) => {
-    const doc = new jsPDF();
-    let y = 20;
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Ariza №${order.id}`,
+                  bold: true,
+                  size: 32,
+                  font: "Arial",
+                }),
+              ],
+              spacing: { after: 200 },
+              alignment: "center",
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Berilgan sana: ${new Date(order.created_at).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
+                  size: 24,
+                  font: "Arial",
+                }),
+              ],
+              spacing: { after: 100 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Mahbus: ${order.prisoner_name}`,
+                  size: 24,
+                  font: "Arial",
+                }),
+              ],
+              spacing: { after: 100 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Tashrif turi: ${order.visit_type === "short" ? "1 kun" : order.visit_type === "long" ? "2 kun" : "3 kun"}`,
+                  size: 24,
+                  font: "Arial",
+                }),
+              ],
+              spacing: { after: 100 },
+            }),
+            ...(order.start_datetime
+              ? [new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `Uchrashuv boshlanishi: ${new Date(order.start_datetime).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
+                      size: 24,
+                      font: "Arial",
+                    }),
+                  ],
+                  spacing: { after: 100 },
+                })]
+              : []),
+            ...(order.end_datetime
+              ? [new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `Uchrashuv tugashi: ${new Date(order.end_datetime).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
+                      size: 24,
+                      font: "Arial",
+                    }),
+                  ],
+                  spacing: { after: 100 },
+                })]
+              : []),
+            ...(order.rejection_reason
+              ? [new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `Rad etish sababi: ${order.rejection_reason}`,
+                      size: 24,
+                      font: "Arial",
+                    }),
+                  ],
+                  spacing: { after: 100 },
+                })]
+              : []),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "Tashrif buyuruvchilar:",
+                  bold: true,
+                  size: 24,
+                  font: "Arial",
+                }),
+              ],
+              spacing: { after: 100 },
+            }),
+            ...order.relatives.map(
+              (r, i) =>
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `${i + 1}) ${r.full_name}, Pasport: ${r.passport}`,
+                      size: 24,
+                      font: "Arial",
+                    }),
+                  ],
+                  spacing: { after: 100 },
+                })
+            ),
+          ],
+        },
+      ],
+    });
 
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Ariza №${order.id}`, 105, y, { align: "center" });
-    y += 20;
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-
-    y = addPdfLine(doc, y, "Berilgan sana", new Date(order.created_at).toLocaleString("uz-UZ"));
-    y = addPdfLine(doc, y, "Mahbus", order.prisoner_name);
-    y = addPdfLine(doc, y, "Tashrif turi", order.visit_type === "short" ? "1 kun" : order.visit_type === "long" ? "2 kun" : "3 kun");
-    if (order.start_datetime)
-      y = addPdfLine(doc, y, "Uchrashuv boshlanishi", new Date(order.start_datetime).toLocaleString("uz-UZ"));
-    if (order.end_datetime)
-      y = addPdfLine(doc, y, "Uchrashuv tugashi", new Date(order.end_datetime).toLocaleString("uz-UZ"));
-    if (order.rejection_reason) y = addPdfLine(doc, y, "Rad etish sababi", order.rejection_reason);
-
-    y = addPdfVisitors(doc, y, order.relatives);
-
-    doc.save(`booking_${order.id}.pdf`);
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, `booking_${order.id}.docx`);
+    });
   };
 
-  const handlePrintBatch = () => {
+  const handlePrintBatch = async () => {
     if (roomsCount <= 0) return;
 
     const pending = [...tableData]
@@ -240,37 +306,104 @@ export default function AllCallsTable() {
 
     if (pending.length === 0) return;
 
-    const doc = new jsPDF();
-    let y = 20;
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: pending.flatMap((order) => {
+            const prelimDate = new Date();
+            prelimDate.setDate(prelimDate.getDate() + 10);
 
-    const prelimDate = new Date();
-    prelimDate.setDate(prelimDate.getDate() + 10);
-
-    pending.forEach((order) => {
-      if (y > 250) {
-        doc.addPage();
-        y = 20;
-      }
-
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Ariza №${order.id}`, 105, y, { align: "center" });
-      y += 20;
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-
-      y = addPdfLine(doc, y, "Berilgan sana", new Date(order.created_at).toLocaleString("uz-UZ"));
-      y = addPdfLine(doc, y, "Mahbus", order.prisoner_name);
-      y = addPdfLine(doc, y, "Tashrif turi", order.visit_type === "short" ? "1 kun" : order.visit_type === "long" ? "2 kun" : "3 kun");
-      y = addPdfLine(doc, y, "Preliminary uchrashuv boshlanishi", prelimDate.toLocaleString("uz-UZ"));
-
-      y = addPdfVisitors(doc, y, order.relatives);
-
-      y += 10;
+            return [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Ariza №${order.id}`,
+                    bold: true,
+                    size: 32,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 200 },
+                alignment: "center",
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Berilgan sana: ${new Date(order.created_at).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
+                    size: 24,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Mahbus: ${order.prisoner_name}`,
+                    size: 24,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Tashrif turi: ${order.visit_type === "short" ? "1 kun" : order.visit_type === "long" ? "2 kun" : "3 kun"}`,
+                    size: 24,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Taxminiy uchrashuv boshlanishi: ${prelimDate.toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}`,
+                    size: 24,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "Tashrif buyuruvchilar:",
+                    bold: true,
+                    size: 24,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 100 },
+              }),
+              ...order.relatives.map(
+                (r, i) =>
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: `${i + 1}) ${r.full_name}, Pasport: ${r.passport}`,
+                        size: 24,
+                        font: "Arial",
+                      }),
+                    ],
+                    spacing: { after: 100 },
+                  })
+              ),
+              new Paragraph({
+                children: [],
+                spacing: { after: 200 },
+              }),
+            ];
+          }),
+        },
+      ],
     });
 
-    doc.save(`batch_bookings.pdf`);
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, `batch_bookings.docx`);
+    });
   };
 
   const handleAcceptBatch = async () => {
@@ -290,21 +423,21 @@ export default function AllCallsTable() {
   return (
     <>
       <div className="flex justify-between mb-6">
-        <div className="">Действия для заполнения</div>
+        <div className="">Amallar</div>
         <div className="flex gap-2">
           <input
             type="number"
             className="border p-2 rounded-xl w-[100px]"
-            placeholder="Комнаты"
+            placeholder="Xonalar"
             value={roomsCount}
             onChange={(e) => setRoomsCount(Number(e.target.value))}
             onBlur={saveRoomsCount}
           />
           <Button size="xs" variant="outline" onClick={handlePrintBatch}>
-            Печатать заявления
+            Arizalarni chop etish
           </Button>
           <Button size="xs" variant="green" onClick={handleAcceptBatch}>
-            Принять заявления
+            Arizalarni qabul qilish
           </Button>
         </div>
       </div>
@@ -327,7 +460,7 @@ export default function AllCallsTable() {
                       className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]"
                       onClick={() => handleSort("created_at")}
                     >
-                      Дата
+                      Sana
                     </div>
                   </TableCell>
                   <TableCell isHeader>
@@ -335,7 +468,7 @@ export default function AllCallsTable() {
                       className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]"
                       onClick={() => handleSort("relatives")}
                     >
-                      Имя заявителя
+                      Ariza beruvchi nomi
                     </div>
                   </TableCell>
                   <TableCell isHeader>
@@ -343,21 +476,21 @@ export default function AllCallsTable() {
                       className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]"
                       onClick={() => handleSort("prisoner_name")}
                     >
-                      Имя заключенного
+                      Mahbus nomi
                     </div>
                   </TableCell>
-                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Длительность</TableCell>
+                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Davomiyligi</TableCell>
                   <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>
                     <div
                       className="cursor-pointer"
                       onClick={() => handleSort("status")}
                     >
-                      Статус заявки
+                      Ariza holati
                     </div>
                   </TableCell>
-                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Действия</TableCell>
-                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Дата свидания</TableCell>
-                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Печать</TableCell>
+                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Amallar</TableCell>
+                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Uchrashuv sanasi</TableCell>
+                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Chop etish</TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
@@ -388,7 +521,7 @@ export default function AllCallsTable() {
                     <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">
                       {Array.isArray(order.relatives) && order.relatives.length > 0
                         ? order.relatives[0].full_name
-                        : "Нет данных"}
+                        : "Ma'lumot yo'q"}
                     </TableCell>
                     <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">{order.prisoner_name}</TableCell>
                     <TableCell className="px-5 py-3">
@@ -396,7 +529,7 @@ export default function AllCallsTable() {
                         size="sm"
                         color={order.visit_type === "short" ? "success" : order.visit_type === "long" ? "warning" : "primary"}
                       >
-                        {order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня"}
+                        {order.visit_type === "short" ? "1 kun" : order.visit_type === "long" ? "2 kun" : "3 kun"}
                       </Badge>
                     </TableCell>
                     <TableCell className="px-5 py-3">
@@ -425,7 +558,7 @@ export default function AllCallsTable() {
                           setApprovedDays(order.visit_type === "short" ? 1 : order.visit_type === "long" ? 2 : 3);
                         }}
                       >
-                        Изменить
+                        O&#39;zgartirish
                       </Button>
                       <Button
                         size="xs"
@@ -437,7 +570,7 @@ export default function AllCallsTable() {
                           setModalType("view");
                         }}
                       >
-                        Принять
+                        Qabul qilish
                       </Button>
                       <Button
                         size="xs"
@@ -449,17 +582,17 @@ export default function AllCallsTable() {
                           setRejectionReason("Qoidabuzarlik uchun!");
                         }}
                       >
-                        Отклонить
+                        Rad etish
                       </Button>
                     </TableCell>
                     <TableCell className="px-5 py-3 text-black dark:text-white">
                       {order.start_datetime && order.status !== "canceled" && order.status !== "rejected"
                         ? new Date(order.start_datetime).toLocaleDateString("ru-RU")
-                        : "Нет данных"}
+                        : "Ma'lumot yo'q"}
                     </TableCell>
                     <TableCell className="px-5 py-3">
                       <Button size="xs" variant="primary" onClick={() => handlePrint(order)}>
-                        Печатать
+                        Chop etish
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -478,30 +611,32 @@ export default function AllCallsTable() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-                Заявка #{selectedOrder.id}
+                Ariza #{selectedOrder.id}
               </h2>
               <div className="mb-4 space-y-2 text-gray-700 dark:text-gray-300">
-                <p><strong>Заключенный:</strong> {selectedOrder.prisoner_name}</p>
-                <p><strong>Тип визита:</strong> {selectedOrder.visit_type === "short" ? "1 день" : selectedOrder.visit_type === "long" ? "2 дня" : "3 дня"}</p>
-                <p><strong>Статус:</strong> {statusMap[selectedOrder.status] || selectedOrder.status}</p>
+                <p><strong>Mahbus:</strong> {selectedOrder.prisoner_name}</p>
+                <p><strong>Tashrif turi:</strong> {selectedOrder.visit_type === "short" ? "1 kun" : selectedOrder.visit_type === "long" ? "2 kun" : "3 kun"}</p>
+                <p><strong>Holat:</strong> {statusMap[selectedOrder.status] || selectedOrder.status}</p>
                 <div>
-                  <strong>Посетители:</strong>
+                  <strong>Tashrif buyuruvchilar:</strong>
                   <ul className="ml-4 list-disc mt-1">
                     {Array.isArray(selectedOrder.relatives) && selectedOrder.relatives.length > 0 ? (
                       selectedOrder.relatives.map((r, i) => (
                         <li key={i}>
-                          {r.full_name} (паспорт: {r.passport})
+                          {r.full_name} (pasport: {r.passport})
                         </li>
                       ))
                     ) : (
-                      <li>Нет данных</li>
+                      <li>Ma&#39;lumot yo&#39;q</li>
                     )}
                   </ul>
                 </div>
               </div>
-              {modalType === "view" && (
+             {modalType === "view" && (
                 <div className="flex flex-col gap-2">
-                  <label className="font-medium text-black dark:text-white">Дата свидания (минимум через 10 дней):</label>
+                  <label className="font-medium text-black dark:text-white">
+                    Uchrashuv sanasi (minimal 10 kundan keyin):
+                  </label>
                   <input
                     type="date"
                     className="border p-2 rounded w-full text-black dark:text-white"
@@ -511,17 +646,17 @@ export default function AllCallsTable() {
                   />
                   <div className="flex gap-2 mt-4">
                     <Button variant="green" onClick={handleAccept}>
-                      Принять
+                      Qabul qilish
                     </Button>
                     <Button variant="primary" onClick={() => setModalType(null)}>
-                      Закрыть
+                      Yopish
                     </Button>
                   </div>
                 </div>
               )}
               {modalType === "reject" && (
                 <div className="flex flex-col text-black dark:text-white gap-2">
-                  <label className="font-medium">Причина отклонения:</label>
+                  <label className="font-medium">Rad etish sababi:</label>
                   <input
                     type="text"
                     className="border p-2 rounded w-full text-black dark:text-white"
@@ -530,10 +665,10 @@ export default function AllCallsTable() {
                   />
                   <div className="flex gap-2 mt-4">
                     <Button variant="red" onClick={handleReject}>
-                      Отклонить
+                      Rad etish
                     </Button>
                     <Button variant="primary" onClick={() => setModalType(null)}>
-                      Закрыть
+                      Yopish
                     </Button>
                   </div>
                 </div>
@@ -541,7 +676,7 @@ export default function AllCallsTable() {
               {modalType === "save" && (
                 <div className="flex flex-col gap-2">
                   <label className="font-medium text-black dark:text-white">
-                    Количество утвержденных дней для свидания:
+                    Tasdiqlangan uchrashuv kunlari soni:
                   </label>
                   <input
                     type="number"
@@ -556,16 +691,16 @@ export default function AllCallsTable() {
                       variant="green"
                       onClick={() => {
                         if (approvedDays < 1 || approvedDays > 3) {
-                          alert("Максимум 3 дня");
+                          alert("Maksimal 3 kun");
                           return;
                         }
                         handleSave();
                       }}
                     >
-                      Сохранить
+                      Saqlash
                     </Button>
                     <Button variant="red" onClick={() => setModalType(null)}>
-                      Закрыть
+                      Yopish
                     </Button>
                   </div>
                 </div>
