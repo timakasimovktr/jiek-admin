@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 🎉 Ariza tasdiqlandi. Raqam: ${booking.id}
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Tashrif sanasi: ${start.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
 🟢 Holat: Tasdiqlangan
 🚪 Xona: ${assignedRoomId}
 `;
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 🎉 Ariza №${booking.id} tasdiqlandi!
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Tashrif sanasi: ${start.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
 ⏲️ Tur: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
 🟢 Holat: Tasdiqlangan
 🚪 Xona: ${assignedRoomId}

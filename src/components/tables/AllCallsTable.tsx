@@ -38,7 +38,7 @@ export default function AllCallsTable() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [modalType, setModalType] = useState<"view" | "reject" | "save" | null>(null);
   const [assignedDate, setAssignedDate] = useState("");
-  const [rejectionReason, setRejectionReason] = useState("Нарушение правил!");
+  const [rejectionReason, setRejectionReason] = useState("Qoidalarni buzish!");
   const [approvedDays, setApprovedDays] = useState<number>(1);
   const [roomsCount, setRoomsCount] = useState<number>(0);
 
@@ -519,7 +519,7 @@ export default function AllCallsTable() {
                         onClick={() => {
                           setSelectedOrder(order);
                           setModalType("reject");
-                          setRejectionReason("Нарушение правил!");
+                          setRejectionReason("Qoidalarni buzish!");
                         }}
                       >
                         Отклонить
