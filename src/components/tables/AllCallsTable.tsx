@@ -489,7 +489,7 @@ export default function AllCallsTable() {
                       </Badge>
                     </TableCell>
                     <TableCell className="px-5 py-3">
-                     {order.room_id}
+                     {order.room_id} комната
                     </TableCell>
                     <TableCell className="px-5 py-3 flex gap-2">
                       <Button
