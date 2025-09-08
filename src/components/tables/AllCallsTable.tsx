@@ -26,6 +26,7 @@ interface Order {
   visit_type: "short" | "long" | "extra";
   status: "approved" | "pending" | "rejected" | "canceled";
   user_id: number;
+  room_id?: number;
   start_datetime?: string;
   end_datetime?: string;
   rejection_reason?: string;
@@ -420,6 +421,7 @@ export default function AllCallsTable() {
                     </div>
                   </TableCell>
                   <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Продолжительность</TableCell>
+                  <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Номер комнаты</TableCell>
                   <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>
                     <div
                       className="cursor-pointer"
@@ -485,6 +487,9 @@ export default function AllCallsTable() {
                       >
                         {statusMap[order.status] || order.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="px-5 py-3">
+                     {order.room_id}
                     </TableCell>
                     <TableCell className="px-5 py-3 flex gap-2">
                       <Button
