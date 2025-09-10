@@ -1,8 +1,11 @@
-import { Inter } from 'next/font/google';
-import './globals.css';
+"use client";
 
-import { SidebarProvider } from '@/context/SidebarContext';
-import { ThemeProvider } from '@/context/ThemeContext';
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+import { SidebarProvider } from "@/context/SidebarContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { useEffect, useState } from "react";
 
 const outfit = Inter({
   subsets: ["latin"],
@@ -10,9 +13,23 @@ const outfit = Inter({
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const password = prompt("Введите пароль:");
+    if (password === "Smartmeet2025") {
+      setAuthorized(true);
+    } else {
+      alert("Неверный пароль!");
+      window.location.href = "about:blank"; // закрыть доступ
+    }
+  }, []);
+
+  if (!authorized) return null;
+
   return (
     <html lang="en">
       <body className={`${outfit.className} dark:bg-gray-900`}>
