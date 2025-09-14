@@ -26,6 +26,7 @@
     visit_type: "short" | "long" | "extra";
     status: "approved" | "pending" | "rejected" | "canceled";
     user_id: number;
+    colony?: number;
     room_id?: number;
     start_datetime?: string;
     end_datetime?: string;
@@ -437,6 +438,7 @@
                       </div>
                     </TableCell>
                     <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Продолжительность</TableCell>
+                    <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Колония</TableCell>
                     <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>Номер комнаты</TableCell>
                     <TableCell className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]" isHeader>
                       <div
@@ -489,6 +491,9 @@
                         >
                           {order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="px-5 py-3">
+                        {order.colony} колония
                       </TableCell>
                       <TableCell className="px-5 py-3">
                         {order.room_id} комната
