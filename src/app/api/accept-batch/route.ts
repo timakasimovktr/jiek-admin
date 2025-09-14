@@ -168,8 +168,9 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-🟢 Holat: Tasdiqlangan
+🏛️ Koloniya: ${booking.colony}  
 🚪 Xona: ${assignedRoomId}
+🟢 Holat: Tasdiqlangan
 `;
 
       const messageBot = `
@@ -188,8 +189,9 @@ export async function POST(req: NextRequest) {
         timeZone: "Asia/Tashkent",
       })}
 ⏲️ Tur: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
-🟢 Holat: Tasdiqlangan
+🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
+🟢 Holat: Tasdiqlangan
 `;
 
       // Отправка в группу администраторов

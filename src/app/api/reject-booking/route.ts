@@ -45,11 +45,11 @@ export async function POST(req: NextRequest) {
     }
 
     const message = `
-    ❌ Ariza rad etildi. Raqam: ${bookingId} 
-    👤 Mas'ul xodim
-    📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-    💬 Sabab: ${reason}
-    🔴 Holat: Rad etilgan
+❌ Ariza rad etildi. Raqam: ${bookingId} 
+👤 Mas'ul xodim
+📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+💬 Sabab: ${reason}
+🔴 Holat: Rad etilgan
     `;
 
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
