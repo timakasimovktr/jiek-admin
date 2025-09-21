@@ -17,6 +17,7 @@ interface Booking extends RowDataPacket {
   created_at: string;
   relatives: string;
   telegram_chat_id?: string;
+  colony: number;
 }
 
 interface SettingsRow extends RowDataPacket {
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     // Получение pending-заявок (ограничено count)
     const [pendingRows] = await pool.query<Booking[]>(
-      "SELECT id, visit_type, created_at, relatives, colony, telegram_chat_id FROM bookings WHERE status = 'pending' AND colony != 5 ORDER BY created_at ASC LIMIT ?",
+      "SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE status = 'pending' AND colony != 5 ORDER BY created_at ASC LIMIT ?",
       [count]
     );
 
