@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
 🔴 Holat: Rad etilgan
     `;
 
-    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      chat_id: ADMIN_CHAT_ID,
-      text: message,
-    });
+    // await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    //   chat_id: ADMIN_CHAT_ID,
+    //   text: message,
+    // });
 
     if (booking.telegram_chat_id) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
