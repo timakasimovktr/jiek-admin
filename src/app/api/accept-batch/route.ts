@@ -40,15 +40,16 @@ export async function POST(req: NextRequest) {
     const { count } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
+    const colonyNum = Number(colony);
 
-    if (!colony) {
+    if (!colonyNum) {
       return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
     }
 
     // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
-      [+colony]
+      [colonyNum]
     );
 
     if (!adminRows.length) {
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     const [deleteResult] = await pool.query<OkPacket[]>(
       `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
-      [colony, todayStartStr]
+      [colonyNum, todayStartStr]
     );
 
     const deletedCount = deleteResult[0].affectedRows || 0;
@@ -218,7 +219,7 @@ export async function POST(req: NextRequest) {
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ? WHERE id = ? AND colony = ?`,
-        [startStr, endStr, assignedRoomId, booking.id, colony]
+        [startStr, endStr, assignedRoomId, booking.id, colonyNum]
       );
 
       assignedCount++;

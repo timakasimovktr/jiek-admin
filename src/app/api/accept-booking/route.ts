@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
     const { bookingId, assignedDate } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
-
+    const colonyNum = Number(colony);
     if (!bookingId || !assignedDate) {
       return NextResponse.json({ error: "bookingId и assignedDate обязательны" }, { status: 400 });
     }
 
-    if (!colony) {
+    if (!colonyNum) {
       return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
     }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     const [deleteResult] = await pool.query<OkPacket[]>(
       `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
-      [colony, todayStartStr]
+      [colonyNum, todayStartStr]
     );
 
     const deletedCount = deleteResult[0].affectedRows || 0;
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
-      [+colony]
+      [colonyNum]
     );
     
     if (!adminRows.length) {
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     const [rows] = await pool.query<Booking[]>(
       "SELECT id, visit_type, prisoner_name, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE id = ? AND colony = ?",
-      [bookingId, colony]
+      [bookingId, colonyNum]
     );
 
     if (rows.length === 0) {
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
            end_datetime = ?, 
            room_id = ?
        WHERE id = ? AND colony = ?`,
-      [startDateStr, endDateStr, assignedRoomId, bookingId, colony]
+      [startDateStr, endDateStr, assignedRoomId, bookingId, colonyNum]
     );
 
     const updateResult = result as { affectedRows: number };
