@@ -1,7 +1,6 @@
 "use client";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
-import Button from "@/components/ui/button/Button";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import React, { useState } from "react";
 import axios from "axios";
@@ -9,27 +8,26 @@ import axios from "axios";
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {  // Добавил async для удобства (если нужно await)
     e.preventDefault();
 
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
-    axios
-      .post("/api/login", data)
-      .then((response) => {
-        console.log("Успешный вход:", response.data);
-        // Дополнительные действия при успешном входе
-      })
-      .catch((error) => {
-        console.error("Ошибка входа:", error.response?.data || error.message);
-        // Обработка ошибок входа
-      });
+    try {
+      const response = await axios.post("/api/login", data);
+      console.log("Успешный вход:", response.data);
+      // Дополнительные действия при успешном входе (например, роут на дашборд)
+      // router.push('/dashboard'); // Если используете next/router
+    } catch {
+      console.error("Ошибка входа:");
+      // Обработка ошибок (например, показать toast с ошибкой)
+    }
   };
+
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
-      
       <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
         <div>
           <div className="mb-5 sm:mb-8">
@@ -41,7 +39,6 @@ export default function SignInForm() {
             </p>
           </div>
           <div>
-
             <form onSubmit={handleSubmit} id="adminsignin">
               <div className="space-y-6">
                 <div>
@@ -73,11 +70,13 @@ export default function SignInForm() {
                   </div>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm" onClick={() => {
-                    (document.getElementById("adminsignin") as HTMLFormElement | null)?.submit();
-                  }}>
+                  {/* Убрал onClick — теперь сабмит через onSubmit формы */}
+                  <button 
+                    type="submit"
+                    className="w-full bg-blue-light-700 hover:bg-blue-light-900 text-white py-3 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center" 
+                  >
                     Войти
-                  </Button>
+                  </button>
                 </div>
               </div>
             </form>

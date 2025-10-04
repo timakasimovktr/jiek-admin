@@ -21,7 +21,7 @@ export default function AuthLayout({
               <GridShape />
               <div className="flex flex-col items-center max-w-xl">
                 <Link href="/" className="block mb-4 text-[40px] font-bold text-white dark:text-white/90">
-                  SMART MEET ADMIN
+                  SMARTMEET ADMIN
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
                   
