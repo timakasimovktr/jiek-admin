@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
-import { RowDataPacket } from "mysql2/promise";
+import { RowDataPacket, OkPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -13,11 +13,17 @@ interface Relative {
 }
 
 interface Booking extends RowDataPacket {
+  id: number;
   visit_type: "short" | "long" | "extra";
   prisoner_name: string;
   created_at: string;
   relatives: string;
   telegram_chat_id?: string;
+  colony: number;
+}
+
+interface CountRow extends RowDataPacket {
+  cnt: number;
 }
 
 export async function POST(req: NextRequest) {
@@ -28,6 +34,28 @@ export async function POST(req: NextRequest) {
 
     if (!bookingId || !assignedDate) {
       return NextResponse.json({ error: "bookingId и assignedDate обязательны" }, { status: 400 });
+    }
+
+    if (!colony) {
+      return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
+    }
+
+    // Очистка завершенных встреч: удаление approved bookings, чья end_datetime < сегодняшнего дня 00:00:00 по Ташкенту
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' });
+    const todayStr = formatter.format(now);
+    const todayStartStr = `${todayStr} 00:00:00`;
+
+    console.log("Cleanup date threshold:", todayStartStr); // Лог: порог для очистки
+
+    const [deleteResult] = await pool.query<OkPacket[]>(
+      `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
+      [colony, todayStartStr]
+    );
+
+    const deletedCount = deleteResult[0].affectedRows || 0;
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} completed bookings`);
     }
 
     const [adminRows] = await pool.query<RowDataPacket[]>(
@@ -42,7 +70,7 @@ export async function POST(req: NextRequest) {
     const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
     const [rows] = await pool.query<Booking[]>(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      "SELECT id, visit_type, prisoner_name, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE id = ? AND colony = ?",
       [bookingId, colony]
     );
 
@@ -55,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const startDate = new Date(assignedDate);
     startDate.setHours(0, 0, 0, 0);
-    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+    const startDateStr = startDate.toISOString().slice(0, 10) + " 00:00:00";
 
     const [settingsRows] = await pool.query<RowDataPacket[]>(`SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`);
     const rooms = Number(settingsRows[0]?.value) || 10;
@@ -69,9 +97,9 @@ export async function POST(req: NextRequest) {
         const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
         const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
 
-        const [occupiedRows] = await pool.query<RowDataPacket[]>(
-          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ? AND colony = ?",
-          [roomId, dayEnd, dayStart, colony]
+        const [occupiedRows] = await pool.query<CountRow[]>(
+          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND colony = ? AND room_id = ? AND ((start_datetime <= ? AND end_datetime >= ?) OR (start_datetime <= ? AND end_datetime >= ?) OR (start_datetime >= ? AND end_datetime <= ?))",
+          [colony, roomId, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
         );
 
         if (occupiedRows[0].cnt > 0) {
@@ -89,14 +117,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Нет доступных комнат на выбранные даты" }, { status: 400 });
     }
 
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + daysToAdd - 1);
+    const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
+
     const [result] = await pool.query(
       `UPDATE bookings 
        SET status = 'approved', 
            start_datetime = ?, 
-           end_datetime = DATE_ADD(?, INTERVAL ? DAY),
+           end_datetime = ?, 
            room_id = ?
        WHERE id = ? AND colony = ?`,
-      [startDateStr, startDateStr, daysToAdd, assignedRoomId, bookingId, colony]
+      [startDateStr, endDateStr, assignedRoomId, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };
@@ -104,7 +136,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
 
-    const relatives: Relative[] = JSON.parse(booking.relatives);
+    let relatives: Relative[] = [];
+    try {
+      relatives = JSON.parse(booking.relatives);
+    } catch (e) {
+      console.error(`Failed to parse relatives for booking ${bookingId}:`, e);
+    }
     const relativeName = relatives[0]?.full_name || "Н/Д";
 
     const messageGroup = `
@@ -140,7 +177,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedCount });
   } catch (err) {
     console.error("Ошибка БД:", err);
     return NextResponse.json({ error: "Ошибка БД" }, { status: 500 });

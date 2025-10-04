@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
-import { RowDataPacket } from "mysql2/promise";
+import { RowDataPacket, OkPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -25,9 +25,9 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-// interface CountRow extends RowDataPacket {
-//   cnt: number;
-// }
+interface CountRow extends RowDataPacket {
+  cnt: number;
+}
 
 interface OccupiedRow extends RowDataPacket {
   room_id: number;
@@ -59,16 +59,13 @@ export async function POST(req: NextRequest) {
 
     // Очистка завершенных встреч: удаление approved bookings, чья end_datetime < сегодняшнего дня 00:00:00 по Ташкенту
     const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    // Корректировка на timezone Asia/Tashkent (UTC+5)
-    const tashekntOffset = 5 * 60; // минуты
-    const utcOffset = now.getTimezoneOffset();
-    const tashekntNow = new Date(now.getTime() + (tashekntOffset + utcOffset) * 60 * 1000);
-    const todayStartStr = tashekntNow.toISOString().slice(0, 10) + " 00:00:00";
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' });
+    const todayStr = formatter.format(now);
+    const todayStartStr = `${todayStr} 00:00:00`;
 
     console.log("Cleanup date threshold:", todayStartStr); // Лог: порог для очистки
 
-    const [deleteResult] = await pool.query<RowDataPacket[]>(
+    const [deleteResult] = await pool.query<OkPacket[]>(
       `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
       [colony, todayStartStr]
     );
@@ -123,9 +120,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Глобальная минимальная дата: текущая дата + 10 дней (для всех заявок, чтобы заполнять пробелы)
-    const globalMinDate = new Date(tashekntNow);
-    globalMinDate.setDate(globalMinDate.getDate() + 10);
-    globalMinDate.setHours(0, 0, 0, 0);
+    let globalMinDate = new Date(now);
+    const globalMinFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' });
+    const minDateStr = globalMinFormatter.format(new Date(globalMinDate.getTime() + 10 * 24 * 60 * 60 * 1000));
+    globalMinDate = new Date(`${minDateStr}T00:00:00+05:00`); // Устанавливаем в Tashkent timezone
 
     console.log("Global min date:", globalMinDate.toISOString().slice(0, 10)); // Лог: глобальная мин дата
 
