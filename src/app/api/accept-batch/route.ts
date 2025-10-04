@@ -37,11 +37,11 @@ export async function POST(req: NextRequest) {
 
     // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
-      `SELECT chat_id FROM admin WHERE id = ?`,
+      `SELECT group_id FROM groups WHERE id = ?`,
       [colony]
     );
-    
-    const adminChatId = (adminRows as { chat_id: string }[])[0]?.chat_id;
+
+    const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
     // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
