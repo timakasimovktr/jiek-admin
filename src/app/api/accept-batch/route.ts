@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || "-1003014693175";
+// const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || "-1003014693175";
 
 interface Relative {
   full_name: string;
@@ -31,6 +32,16 @@ interface CountRow extends RowDataPacket {
 export async function POST(req: NextRequest) {
   try {
     const { count } = await req.json();
+    const cookieStore = await cookies();
+    const colony = cookieStore.get("colony")?.value;
+
+    // get ADMIN_CHAT_ID from db admin table where id is colony number
+    const [adminRows] = await pool.query<RowDataPacket[]>(
+      `SELECT chat_id FROM admin WHERE id = ?`,
+      [colony]
+    );
+    
+    const adminChatId = (adminRows as { chat_id: string }[])[0]?.chat_id;
 
     // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
@@ -45,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     // Чтение количества комнат из settings
     const [settingsRows] = await pool.query<SettingsRow[]>(
-      "SELECT value FROM settings WHERE `key` = 'rooms_count'"
+      `SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`
     );
     const rooms = Number(settingsRows[0]?.value) || 10;
     console.log("Rooms count from DB:", rooms); // Лог: кол-во комнат из БД
@@ -60,8 +71,8 @@ export async function POST(req: NextRequest) {
 
     // Получение pending-заявок (ограничено count)
     const [pendingRows] = await pool.query<Booking[]>(
-      "SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE status = 'pending' AND colony != 5 ORDER BY created_at ASC LIMIT ?",
-      [count]
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
+      [colony, count]
     );
 
     console.log("Pending bookings found:", pendingRows.length); // Лог: сколько pending найдено
@@ -98,13 +109,14 @@ export async function POST(req: NextRequest) {
             const [occupiedRows] = await pool.query<CountRow[]>(
               `SELECT COUNT(*) as cnt FROM bookings 
                WHERE status = 'approved' 
+               AND colony = ? 
                AND room_id = ? 
                AND (
                  (start_datetime <= ? AND end_datetime >= ?) OR 
                  (start_datetime <= ? AND end_datetime >= ?) OR 
                  (start_datetime >= ? AND end_datetime <= ?)
                )`,
-              [roomId, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
+              [colony, roomId, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
             );
 
             if (occupiedRows[0].cnt > 0) {
@@ -137,8 +149,8 @@ export async function POST(req: NextRequest) {
       const endDateStr = endStr.toISOString().slice(0, 10) + " 23:59:59";
 
       await pool.query(
-        "UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ? WHERE id = ?",
-        [startStr, endDateStr, assignedRoomId, booking.id]
+        `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ? WHERE id = ? AND colony = ?`,
+        [startStr, endDateStr, assignedRoomId, booking.id, colony]
       );
 
       assignedCount++;
@@ -198,7 +210,7 @@ export async function POST(req: NextRequest) {
       // Отправка в группу администраторов
       try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          chat_id: ADMIN_CHAT_ID,
+          chat_id: adminChatId,
           text: messageGroup,
         });
         console.log(`Sent group message for booking ${booking.id}`);
