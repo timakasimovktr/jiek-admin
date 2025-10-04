@@ -4,24 +4,30 @@ import Label from "@/components/form/Label";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import React, { useState } from "react";
 import axios from "axios";
+import { useCookies } from "react-cookie";
+import { useRouter } from "next/navigation";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
+  const [cookies, setCookie] = useCookies(["colony"]);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {  // Добавил async для удобства (если нужно await)
     e.preventDefault();
-
+    console.log(cookies);
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
     try {
       const response = await axios.post("/api/login", { id: +data.id, password: data.password });
-      console.log("Успешный вход:", response.data);
-      // Дополнительные действия при успешном входе (например, роут на дашборд)
-      // router.push('/dashboard'); // Если используете next/router
+
+      console.log("Успешный вход:", response.data.userId);
+      setCookie("colony", data.id);
+      router.push('/');
     } catch {
       console.error("Ошибка входа:");
+      alert("Ошибка входа. Проверьте ID и пароль.");
       // Обработка ошибок (например, показать toast с ошибкой)
     }
   };
