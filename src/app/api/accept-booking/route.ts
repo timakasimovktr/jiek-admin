@@ -48,12 +48,12 @@ export async function POST(req: NextRequest) {
 
     console.log("Cleanup date threshold:", todayStartStr); // Лог: порог для очистки
 
-    const [deleteResult] = await pool.query<OkPacket[]>(
+    const [deleteResult] = await pool.query<OkPacket>(
       `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
       [colony, todayStartStr]
     );
 
-    const deletedCount = deleteResult[0].affectedRows || 0;
+    const deletedCount = deleteResult.affectedRows || 0;
     if (deletedCount > 0) {
       console.log(`Cleaned up ${deletedCount} completed bookings`);
     }
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     endDate.setDate(endDate.getDate() + daysToAdd - 1);
     const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
 
-    const [result] = await pool.query(
+    const [result] = await pool.query<OkPacket>(
       `UPDATE bookings 
        SET status = 'approved', 
            start_datetime = ?, 
@@ -130,8 +130,8 @@ export async function POST(req: NextRequest) {
       [startDateStr, endDateStr, assignedRoomId, bookingId, colony]
     );
 
-    const updateResult = result as { affectedRows: number };
-    if (updateResult.affectedRows === 0) {
+    const updateResult = result.affectedRows || 0;
+    if (updateResult === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
 

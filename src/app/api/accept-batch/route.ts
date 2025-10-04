@@ -25,10 +25,6 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-// interface CountRow extends RowDataPacket {
-//   cnt: number;
-// }
-
 interface OccupiedRow extends RowDataPacket {
   room_id: number;
   start_datetime: string;
@@ -64,12 +60,12 @@ export async function POST(req: NextRequest) {
 
     console.log("Cleanup date threshold:", todayStartStr); // Лог: порог для очистки
 
-    const [deleteResult] = await pool.query<OkPacket[]>(
+    const [deleteResult] = await pool.query<OkPacket>(
       `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
       [colony, todayStartStr]
     );
 
-    const deletedCount = deleteResult[0].affectedRows || 0;
+    const deletedCount = deleteResult.affectedRows || 0;
     if (deletedCount > 0) {
       console.log(`Cleaned up ${deletedCount} completed bookings`);
     }
@@ -119,10 +115,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Глобальная минимальная дата: текущая дата + 10 дней (для всех заявок, чтобы заполнять пробелы)
-    let globalMinDate = new Date(now);
-    const globalMinFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' });
-    const minDateStr = globalMinFormatter.format(new Date(globalMinDate.getTime() + 10 * 24 * 60 * 60 * 1000));
-    globalMinDate = new Date(`${minDateStr}T00:00:00+05:00`); // Устанавливаем в Tashkent timezone
+    const globalMinDate = new Date(now);
+    globalMinDate.setDate(globalMinDate.getDate() + 10);
+    globalMinDate.setHours(0, 0, 0, 0);
 
     console.log("Global min date:", globalMinDate.toISOString().slice(0, 10)); // Лог: глобальная мин дата
 
