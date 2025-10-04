@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
         const [rows] = await pool.query<BookingRow[]>(
             "SELECT id FROM admin WHERE id = ? AND password = ?",
-            [id, colony, password]
+            [id, password]
         );
 
         if (rows.length === 0) {
