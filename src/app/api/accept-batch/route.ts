@@ -25,9 +25,9 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-interface CountRow extends RowDataPacket {
-  cnt: number;
-}
+// interface CountRow extends RowDataPacket {
+//   cnt: number;
+// }
 
 interface OccupiedRow extends RowDataPacket {
   room_id: number;
