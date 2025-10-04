@@ -25,8 +25,14 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-interface CountRow extends RowDataPacket {
-  cnt: number;
+// interface CountRow extends RowDataPacket {
+//   cnt: number;
+// }
+
+interface OccupiedRow extends RowDataPacket {
+  room_id: number;
+  start_datetime: string;
+  end_datetime: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -95,6 +101,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Kutilayotgan arizalar yo'q" }, { status: 200 });
     }
 
+    // Загрузка всех занятых дней по комнатам из approved bookings
+    const [occupiedRows] = await pool.query<OccupiedRow[]>(
+      `SELECT room_id, start_datetime, end_datetime FROM bookings WHERE status = 'approved' AND colony = ?`,
+      [colony]
+    );
+
+    const occupiedPerRoom: { [room: number]: Set<string> } = {};
+
+    for (const occ of occupiedRows) {
+      const room = occ.room_id;
+      if (!occupiedPerRoom[room]) {
+        occupiedPerRoom[room] = new Set();
+      }
+      const currentDay = new Date(occ.start_datetime);
+      currentDay.setHours(0, 0, 0, 0);
+      const endDay = new Date(occ.end_datetime);
+      endDay.setHours(0, 0, 0, 0);
+      while (currentDay <= endDay) {
+        occupiedPerRoom[room].add(currentDay.toISOString().slice(0, 10));
+        currentDay.setDate(currentDay.getDate() + 1);
+      }
+    }
+
     let assignedCount = 0; // Счетчик успешно назначенных заявок
     const assignedBookings: { bookingId: number; startDate: string; roomId: number }[] = [];
 
@@ -104,66 +133,69 @@ export async function POST(req: NextRequest) {
       const minDate = new Date(createdDate);
       minDate.setDate(minDate.getDate() + 10);
       minDate.setHours(0, 0, 0, 0);
-      const start = new Date(minDate);
-      let found = false;
+      let assignedStart: Date | null = null;
       let assignedRoomId: number | null = null;
 
       // Попытка найти свободную комнату (до 60 дней вперед)
       for (let tries = 0; tries < 60; tries++) {
+        const start = new Date(minDate);
+        start.setDate(start.getDate() + tries);
+        let found = false;
+
         for (let roomId = 1; roomId <= rooms; roomId++) {
+          const occupiedDays = occupiedPerRoom[roomId] || new Set();
           let canFit = true;
+
           for (let d = 0; d < duration; d++) {
             const day = new Date(start);
             day.setDate(day.getDate() + d);
-            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+            const dayStr = day.toISOString().slice(0, 10);
 
-            // Проверка пересечения дат
-            const [occupiedRows] = await pool.query<CountRow[]>(
-              `SELECT COUNT(*) as cnt FROM bookings 
-               WHERE status = 'approved' 
-               AND colony = ? 
-               AND room_id = ? 
-               AND (
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime >= ? AND end_datetime <= ?)
-               )`,
-              [colony, roomId, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
-            );
-
-            if (occupiedRows[0].cnt > 0) {
+            if (occupiedDays.has(dayStr)) {
               canFit = false;
               break;
             }
           }
+
           if (canFit) {
             found = true;
             assignedRoomId = roomId;
+            assignedStart = start;
             console.log(
               `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)}`
             ); // Лог: назначение комнаты
             break;
           }
         }
+
         if (found) break;
-        start.setDate(start.getDate() + 1);
       }
 
-      if (!found || assignedRoomId === null) {
+      if (!assignedStart || assignedRoomId === null) {
         console.warn(`No room found for booking ${booking.id} after 60 tries`);
         continue;
       }
 
+      // Добавление занятых дней в память для последующих бронирований
+      for (let d = 0; d < duration; d++) {
+        const day = new Date(assignedStart);
+        day.setDate(day.getDate() + d);
+        const dayStr = day.toISOString().slice(0, 10);
+        if (!occupiedPerRoom[assignedRoomId]) {
+          occupiedPerRoom[assignedRoomId] = new Set();
+        }
+        occupiedPerRoom[assignedRoomId].add(dayStr);
+      }
+
       // Обновление брони
-      const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
-      const endStr = new Date(start);
-      endStr.setDate(endStr.getDate() + duration - 1);
-      const endDateStr = endStr.toISOString().slice(0, 10) + " 23:59:59";
+      const startStr = assignedStart.toISOString().slice(0, 10) + " 00:00:00";
+      const endDate = new Date(assignedStart);
+      endDate.setDate(endDate.getDate() + duration - 1);
+      const endStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ? WHERE id = ? AND colony = ?`,
-        [startStr, endDateStr, assignedRoomId, booking.id, colony]
+        [startStr, endStr, assignedRoomId, booking.id, colony]
       );
 
       assignedCount++;
@@ -188,7 +220,7 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+⌚ Kelish sanasi: ${assignedStart.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -208,7 +240,7 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+⌚ Kelish sanasi: ${assignedStart.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
