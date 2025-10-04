@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
 // const ADMIN_CHAT_ID = "-1003014693175";
@@ -24,14 +25,20 @@ interface BookingRow extends RowDataPacket {
 export async function POST(req: NextRequest) {
   try {
     const { bookingId, approvedDays } = await req.json();
+    const cookieStore = await cookies();
+    const colony = cookieStore.get("colony")?.value;
 
+    if (!colony) {
+      return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
+    }
+ 
     if (!bookingId || !approvedDays) {
       return NextResponse.json({ error: "bookingId и approvedDays обязательны" }, { status: 400 });
     }
 
     const [rows] = await pool.query<BookingRow[]>(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ?",
-      [bookingId]
+      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      [bookingId, colony]
     );
 
     if (rows.length === 0) {
@@ -50,8 +57,8 @@ export async function POST(req: NextRequest) {
     }
 
     await pool.query(
-      "UPDATE bookings SET visit_type = ? WHERE id = ?",
-      [visitType, bookingId]
+      "UPDATE bookings SET visit_type = ? WHERE id = ? AND colony = ?",
+      [visitType, bookingId, colony]
     );
 
     // const relatives: Relative[] = JSON.parse(rows[0].relatives);

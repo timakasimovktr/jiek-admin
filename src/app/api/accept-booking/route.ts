@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
-const ADMIN_CHAT_ID = "-1003014693175";
+// const ADMIN_CHAT_ID = "-1003014693175";
 
 interface Relative {
   full_name: string;
@@ -22,14 +23,27 @@ interface Booking extends RowDataPacket {
 export async function POST(req: NextRequest) {
   try {
     const { bookingId, assignedDate } = await req.json();
+    const cookieStore = await cookies();
+    const colony = cookieStore.get("colony")?.value;
 
     if (!bookingId || !assignedDate) {
       return NextResponse.json({ error: "bookingId и assignedDate обязательны" }, { status: 400 });
     }
 
+    const [adminRows] = await pool.query<RowDataPacket[]>(
+      `SELECT group_id FROM \`groups\` WHERE id = ?`,
+      [colony]
+    );
+    
+    if (!adminRows.length) {
+      return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
+    }
+
+    const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
+
     const [rows] = await pool.query<Booking[]>(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ?",
-      [bookingId]
+      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      [bookingId, colony]
     );
 
     if (rows.length === 0) {
@@ -43,7 +57,7 @@ export async function POST(req: NextRequest) {
     startDate.setHours(0, 0, 0, 0);
     const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
 
-    const [settingsRows] = await pool.query<RowDataPacket[]>("SELECT value FROM settings WHERE `key` = 'rooms_count'");
+    const [settingsRows] = await pool.query<RowDataPacket[]>(`SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`);
     const rooms = Number(settingsRows[0]?.value) || 10;
     let assignedRoomId: number | null = null;
 
@@ -56,8 +70,8 @@ export async function POST(req: NextRequest) {
         const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
 
         const [occupiedRows] = await pool.query<RowDataPacket[]>(
-          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ?",
-          [roomId, dayEnd, dayStart]
+          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ? AND colony = ?",
+          [roomId, dayEnd, dayStart, colony]
         );
 
         if (occupiedRows[0].cnt > 0) {
@@ -81,8 +95,8 @@ export async function POST(req: NextRequest) {
            start_datetime = ?, 
            end_datetime = DATE_ADD(?, INTERVAL ? DAY),
            room_id = ?
-       WHERE id = ?`,
-      [startDateStr, startDateStr, daysToAdd, assignedRoomId, bookingId]
+       WHERE id = ? AND colony = ?`,
+      [startDateStr, startDateStr, daysToAdd, assignedRoomId, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };
@@ -115,7 +129,7 @@ export async function POST(req: NextRequest) {
     `;
 
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      chat_id: ADMIN_CHAT_ID,
+      chat_id: adminChatId,
       text: messageGroup,
     });
 

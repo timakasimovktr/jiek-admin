@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
     }
 
-
     const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
     // Проверка валидности count

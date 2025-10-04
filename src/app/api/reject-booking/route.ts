@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
 // const ADMIN_CHAT_ID = "-1003014693175";
@@ -18,14 +19,20 @@ interface BookingRow extends RowDataPacket {
 export async function POST(req: NextRequest) {
   try {
     const { bookingId, reason } = await req.json();
+    const cookieStore = await cookies();
+    const colony = cookieStore.get("colony")?.value;
+    
+    if (!colony) {
+      return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
+    }
 
     if (!bookingId || !reason) {
       return NextResponse.json({ error: "bookingId и reason обязательны" }, { status: 400 });
     }
 
     const [rows] = await pool.query<BookingRow[]>(
-      "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ?",
-      [bookingId]
+      "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      [bookingId, colony]
     );
 
     if (rows.length === 0) {
@@ -35,8 +42,8 @@ export async function POST(req: NextRequest) {
     const booking = rows[0];
 
     const [result] = await pool.query(
-      "UPDATE bookings SET status = 'canceled', rejection_reason = ? WHERE id = ?",
-      [reason, bookingId]
+      "UPDATE bookings SET status = 'canceled', rejection_reason = ? WHERE id = ? AND colony = ?",
+      [reason, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };
