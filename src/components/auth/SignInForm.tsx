@@ -48,7 +48,7 @@ export default function SignInForm() {
                   <Label>
                     Номер колонии <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input placeholder="info@gmail.com" type="text" />
+                  <Input name="id" placeholder="info@gmail.com" type="text" />
                 </div>
                 <div>
                   <Label>
@@ -56,6 +56,7 @@ export default function SignInForm() {
                   </Label>
                   <div className="relative">
                     <Input
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Введите ваш пароль"
                     />
