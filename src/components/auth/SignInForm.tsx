@@ -16,7 +16,7 @@ export default function SignInForm() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const response = await axios.post("/api/login", data);
+      const response = await axios.post("/api/login", { id: +data.id, password: data.password });
       console.log("Успешный вход:", response.data);
       // Дополнительные действия при успешном входе (например, роут на дашборд)
       // router.push('/dashboard'); // Если используете next/router
