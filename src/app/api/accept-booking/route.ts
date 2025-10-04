@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
-      [colony]
+      [+colony]
     );
     
     if (!adminRows.length) {
