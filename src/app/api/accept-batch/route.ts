@@ -35,11 +35,20 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
 
+    if (!colony) {
+      return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
+    }
+
     // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM groups WHERE id = ?`,
       [colony]
     );
+
+    if (!adminRows.length) {
+      return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
+    }
+
 
     const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
@@ -58,6 +67,11 @@ export async function POST(req: NextRequest) {
     const [settingsRows] = await pool.query<SettingsRow[]>(
       `SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`
     );
+
+    if (!settingsRows.length) {
+      return NextResponse.json({ error: `rooms_count${colony} sozlama topilmadi` }, { status: 400 });
+    }
+
     const rooms = Number(settingsRows[0]?.value) || 10;
     console.log("Rooms count from DB:", rooms); // Лог: кол-во комнат из БД
 
