@@ -101,6 +101,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Kutilayotgan arizalar yo'q" }, { status: 200 });
     }
 
+    // Глобальная минимальная дата: текущая дата + 10 дней (для всех заявок, чтобы заполнять пробелы)
+    const now = new Date();
+    const globalMinDate = new Date(now);
+    globalMinDate.setDate(globalMinDate.getDate() + 10);
+    globalMinDate.setHours(0, 0, 0, 0);
+
+    console.log("Global min date:", globalMinDate.toISOString().slice(0, 10)); // Лог: глобальная мин дата
+
     // Загрузка всех занятых дней по комнатам из approved bookings
     const [occupiedRows] = await pool.query<OccupiedRow[]>(
       `SELECT room_id, start_datetime, end_datetime FROM bookings WHERE status = 'approved' AND colony = ?`,
@@ -129,16 +137,13 @@ export async function POST(req: NextRequest) {
 
     for (const booking of pendingRows) {
       const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      const createdDate = new Date(booking.created_at);
-      const minDate = new Date(createdDate);
-      minDate.setDate(minDate.getDate() + 10);
-      minDate.setHours(0, 0, 0, 0);
       let assignedStart: Date | null = null;
       let assignedRoomId: number | null = null;
 
-      // Попытка найти свободную комнату (до 60 дней вперед)
+      // Используем глобальную minDate для поиска самого раннего слота (заполнение пробелов)
+      // Попытка найти свободную комнату (до 60 дней вперед от globalMinDate)
       for (let tries = 0; tries < 60; tries++) {
-        const start = new Date(minDate);
+        const start = new Date(globalMinDate);
         start.setDate(start.getDate() + tries);
         let found = false;
 
