@@ -57,6 +57,27 @@ export async function POST(req: NextRequest) {
 
     const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
+    // Очистка завершенных встреч: удаление approved bookings, чья end_datetime < сегодняшнего дня 00:00:00 по Ташкенту
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    // Корректировка на timezone Asia/Tashkent (UTC+5)
+    const tashekntOffset = 5 * 60; // минуты
+    const utcOffset = now.getTimezoneOffset();
+    const tashekntNow = new Date(now.getTime() + (tashekntOffset + utcOffset) * 60 * 1000);
+    const todayStartStr = tashekntNow.toISOString().slice(0, 10) + " 00:00:00";
+
+    console.log("Cleanup date threshold:", todayStartStr); // Лог: порог для очистки
+
+    const [deleteResult] = await pool.query<RowDataPacket[]>(
+      `DELETE FROM bookings WHERE status = 'approved' AND colony = ? AND end_datetime < ?`,
+      [colony, todayStartStr]
+    );
+
+    const deletedCount = deleteResult[0].affectedRows || 0;
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} completed bookings`);
+    }
+
     // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
       console.error("Invalid count:", count);
@@ -102,14 +123,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Глобальная минимальная дата: текущая дата + 10 дней (для всех заявок, чтобы заполнять пробелы)
-    const now = new Date();
-    const globalMinDate = new Date(now);
+    const globalMinDate = new Date(tashekntNow);
     globalMinDate.setDate(globalMinDate.getDate() + 10);
     globalMinDate.setHours(0, 0, 0, 0);
 
     console.log("Global min date:", globalMinDate.toISOString().slice(0, 10)); // Лог: глобальная мин дата
 
-    // Загрузка всех занятых дней по комнатам из approved bookings
+    // Загрузка всех занятых дней по комнатам из approved bookings (после очистки)
     const [occupiedRows] = await pool.query<OccupiedRow[]>(
       `SELECT room_id, start_datetime, end_datetime FROM bookings WHERE status = 'approved' AND colony = ?`,
       [colony]
@@ -286,7 +306,7 @@ export async function POST(req: NextRequest) {
       `Batch processing completed: ${assignedCount} bookings assigned out of ${pendingRows.length}, using max ${rooms} rooms`
     ); // Финальный лог
 
-    return NextResponse.json({ success: true, assignedBookings, assignedCount });
+    return NextResponse.json({ success: true, assignedBookings, assignedCount, deletedCount });
   } catch (err) {
     console.error("DB xatosi:", err);
     return NextResponse.json({ error: "DB xatosi" }, { status: 500 });
