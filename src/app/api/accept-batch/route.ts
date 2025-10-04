@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
-      `SELECT group_id FROM groups WHERE id = ?`,
+      `SELECT group_id FROM \`groups\` WHERE id = ?`,
       [colony]
     );
 
