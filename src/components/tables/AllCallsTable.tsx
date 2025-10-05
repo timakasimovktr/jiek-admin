@@ -517,7 +517,7 @@
                           {statusMap[order.status] || order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-5 py-3 flex gap-2">
+                      <TableCell className="px-5 py-3 flex gap-2 justify-center align-center">
                         <Button
                           size="xs"
                           variant="outline"
