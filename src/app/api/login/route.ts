@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { RowDataPacket } from "mysql2/promise";
-import { cookies } from "next/headers";
 
 // const ADMIN_CHAT_ID = "-1003014693175";
 
@@ -17,12 +16,7 @@ interface BookingRow extends RowDataPacket {
 export async function POST(req: NextRequest) {
     try {
         const { id, password } = await req.json();
-        const cookieStore = await cookies();
-        const colony = cookieStore.get("colony")?.value;
 
-        if (!colony) {
-            return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
-        }
         if (!id || !password) {
             return NextResponse.json({ error: "id и password обязательны" }, { status: 400 });
         }
