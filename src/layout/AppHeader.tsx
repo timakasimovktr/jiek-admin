@@ -30,13 +30,13 @@ const AppHeader: React.FC = () => {
 
 
   const handleCheck = React.useCallback(async () => {  // Добавил async для удобства (если нужно await)
+    debugger;
     try {
       const response = await axios.post("/api/login", { id: cookies.colony, password: cookies["password@"] });
 
       console.log("Успешный вход:", response.data.userId);
     } catch {
       console.error("Ошибка входа:");
-      alert("Ошибка входа. Проверьте ID и пароль.");
       router.push('/signin');
       setCookie("colony", "");
       setCookie("password@", "");

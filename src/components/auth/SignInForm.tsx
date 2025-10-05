@@ -52,7 +52,7 @@ export default function SignInForm() {
                   <Label>
                     Номер колонии <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input name="id" placeholder="info@gmail.com" type="text" />
+                  <Input name="id" placeholder="24" type="text" />
                 </div>
                 <div>
                   <Label>
