@@ -387,7 +387,7 @@
               type="number"
               min="1"
               max="50" // Добавьте max для валидации
-              className="border p-2 rounded-xl w-[100px]"
+              className="border p-2 rounded-xl w-[100px] text-black dark:text-white"
               placeholder="Комнаты"
               value={roomsCount}
               onChange={(e) => setRoomsCount(Number(e.target.value))}
