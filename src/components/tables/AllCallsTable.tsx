@@ -517,7 +517,7 @@
                           {statusMap[order.status] || order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-5 py-3 flex gap-2 justify-center align-center">
+                      <TableCell className="px-5 py-3">
                         <Button
                           size="xs"
                           variant="outline"
@@ -534,7 +534,7 @@
                         <Button
                           size="xs"
                           variant="green"
-                          className={order.status === "approved" ? "opacity-50 cursor-not-allowed" : ""}
+                          className={order.status === "approved" ? "opacity-50 cursor-not-allowed mx-2" : "mx-2"}
                           disabled={order.status === "approved"}
                           onClick={() => {
                             setSelectedOrder(order);
