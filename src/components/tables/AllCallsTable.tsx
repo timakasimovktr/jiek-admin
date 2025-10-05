@@ -501,7 +501,7 @@
                         {order.colony} кол
                       </TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white">
-                        {order.room_id ? order.room_id + " ком" : "Нет данных"}
+                        {order.room_id ? order.room_id + " ком" : "-"}
                       </TableCell>
                       <TableCell className="px-5 py-3">
                         <Badge
