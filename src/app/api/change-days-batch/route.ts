@@ -42,8 +42,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
     }
 
-    const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
-
     // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
       console.error("Invalid count:", count);
@@ -109,21 +107,6 @@ export async function POST(req: NextRequest) {
       }
       const relativeName = relatives[0]?.full_name || "N/A";
 
-      // Сообщения для Telegram
-      const messageGroup = `
-📝 Ariza kunlari o'zgartirildi. Raqam: ${booking.id}
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        timeZone: "Asia/Tashkent",
-      })}
-⏲️ Yangi tur: ${days}-kunlik
-🏛️ Koloniya: ${booking.colony}  
-🟡 Holat: Kutilmoqda
-`;
-
       const messageBot = `
 📝 Ariza №${booking.id} kunlari o'zgartirildi!
 👤 Arizachi: ${relativeName}
@@ -137,17 +120,6 @@ export async function POST(req: NextRequest) {
 🏛️ Koloniya: ${booking.colony}
 🟡 Holat: Kutilmoqda
 `;
-
-      // Отправка в группу администраторов
-      try {
-        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          chat_id: adminChatId,
-          text: messageGroup,
-        });
-        console.log(`Sent group message for booking ${booking.id}`);
-      } catch (err) {
-        console.error(`Failed to send group message for booking ${booking.id}:`, err);
-      }
 
       // Отправка пользователю
       if (booking.telegram_chat_id) {
