@@ -42,6 +42,7 @@
     const [assignedDate, setAssignedDate] = useState("");
     const [rejectionReason, setRejectionReason] = useState("Qoidalarni buzish!");
     const [approvedDays, setApprovedDays] = useState<number>(1);
+    const [changeRoomsCount, setChangeRoomsCount] = useState<number>(1);
     const [roomsCount, setRoomsCount] = useState<number>(0);
 
     const statusMap: Record<string, string> = {
@@ -374,6 +375,22 @@
       }
     };
 
+    const handleChangeDays = async () => {
+      if (roomsCount <= 0) return;
+      if (changeRoomsCount <= 0) {
+        alert("Количество дней должно быть от 1 до 3");
+        return;
+      }
+      if (!confirm(`Вы уверены, что хотите изменить количество дней на ${changeRoomsCount} для выбранных ${roomsCount} заявлений?`)) return;
+      try {
+        await axios.post("/api/change-days-batch", { count: roomsCount, days: changeRoomsCount });
+        fetchData();
+        fetchRoomsCount();
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     const minDate = new Date();
     minDate.setDate(minDate.getDate() + 10);
     const minDateStr = minDate.toISOString().split("T")[0];
@@ -381,7 +398,20 @@
     return (
       <>
         <div className="flex justify-between mb-6">
-          <div className="text-black dark:text-white">Действия для заполнения</div>
+          <div className="text-black dark:text-white flex w-full">
+            <h2 className="text-2xl font-bold">изменить количество дней на - </h2>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                max="3"
+                className="border p-2 rounded-xl w-[100px] text-black dark:text-white"
+                placeholder="Дни"
+                value={changeRoomsCount}
+                onChange={(e) => setChangeRoomsCount(Number(e.target.value))}
+              />
+            </div>
+          </div>
           <div className="flex gap-2">
             <input
               type="number"
@@ -398,6 +428,9 @@
             </Button>
             <Button size="xs" variant="outline" onClick={handlePrintBatch}>
               Печать заявлений
+            </Button>
+            <Button size="xs" variant="primary" onClick={handleChangeDays}>
+              Изменить дни
             </Button>
             <Button size="xs" variant="green" onClick={handleAcceptBatch}>
               Принять заявления
@@ -563,8 +596,7 @@
                           ? `${new Date(
                                 new Date(order.start_datetime).getTime() + 1 * 24 * 60 * 60 * 1000 // +1 день только к начальной
                               ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
-                          : "Нет данных"}
-
+                          : "-"}
                       </TableCell>
                       <TableCell className="px-5 py-3">
                         <Button size="xs" variant="primary" onClick={() => handlePrint(order)}>
