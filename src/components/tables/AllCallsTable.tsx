@@ -1,5 +1,5 @@
   "use client";
-  import React, { useEffect, useState } from "react";
+  import React, {useEffect, useState } from "react";
   import {
     Table,
     TableBody,
@@ -54,6 +54,11 @@
     useEffect(() => {
       fetchData();
       fetchRoomsCount();
+    }, []);
+
+    useEffect(() => {
+      setInterval(fetchData, 60000); // Обновление каждые 60 секунд  
+      setInterval(fetchRoomsCount, 60000); // Обновление каждые 60 секунд  
     }, []);
 
     const fetchData = async () => {
@@ -376,7 +381,7 @@
     return (
       <>
         <div className="flex justify-between mb-6">
-          <div className="">Действия для заполнения</div>
+          <div className="text-black dark:text-white">Действия для заполнения</div>
           <div className="flex gap-2">
             <input
               type="number"
@@ -478,12 +483,12 @@
                       <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">
                         {new Date(order.created_at).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}
                       </TableCell>
-                      <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">
+                      <TableCell className="px-5 py-3 text-black dark:text-white">
                         {Array.isArray(order.relatives) && order.relatives.length > 0
                           ? order.relatives[0].full_name
                           : "Нет данных"}
                       </TableCell>
-                      <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">{order.prisoner_name}</TableCell>
+                      <TableCell className="px-5 py-3 text-black dark:text-white">{order.prisoner_name}</TableCell>
                       <TableCell className="px-5 py-3">
                         <Badge
                           size="sm"
@@ -492,10 +497,10 @@
                           {order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-5 py-3">
+                      <TableCell className="px-5 py-3 text-black dark:text-white">
                         {order.colony} колония
                       </TableCell>
-                      <TableCell className="px-5 py-3">
+                      <TableCell className="px-5 py-3 text-black dark:text-white">
                         {order.room_id} комната
                       </TableCell>
                       <TableCell className="px-5 py-3">

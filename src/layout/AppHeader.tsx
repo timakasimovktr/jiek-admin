@@ -78,7 +78,7 @@ const AppHeader: React.FC = () => {
               alt="Logo"
             /> */}
             <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Smart Dunyo Meet Admin
+              Smart Dunyo Meet Admin {cookies.colony}
             </span>
           </div>
 
@@ -158,7 +158,7 @@ const AppHeader: React.FC = () => {
             </svg>
           </button>
 
-          <div className="hidden lg:block">
+          {/* <div className="hidden lg:block">
             <form>
               <div className="relative">
                 <span className="absolute -translate-y-1/2 left-4 top-1/2 pointer-events-none">
@@ -191,7 +191,7 @@ const AppHeader: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </div> */}
         </div>
         <div
           className={`${
