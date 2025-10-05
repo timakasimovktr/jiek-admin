@@ -518,7 +518,8 @@
                         </Badge>
                       </TableCell>
                       <TableCell className="px-5 py-3">
-                        <Button
+                        <div className="flex gap-2">
+                          <Button
                           size="xs"
                           variant="outline"
                           className={order.status === "approved" ? "opacity-50 cursor-not-allowed" : ""}
@@ -534,7 +535,7 @@
                         <Button
                           size="xs"
                           variant="green"
-                          className={order.status === "approved" ? "opacity-50 cursor-not-allowed mx-2" : "mx-2"}
+                          className={order.status === "approved" ? "opacity-50 cursor-not-allowed" : ""}
                           disabled={order.status === "approved"}
                           onClick={() => {
                             setSelectedOrder(order);
@@ -555,6 +556,7 @@
                         >
                           Отклонить
                         </Button>
+                        </div>
                       </TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white">
                         {order.start_datetime && order.status === "approved"
