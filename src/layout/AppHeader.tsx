@@ -3,9 +3,20 @@ import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import UserDropdown from "@/components/header/UserDropdown";
 // import { useSidebar } from "@/context/SidebarContext";
 import React, { useState ,useEffect,useRef} from "react";
+import { useCookies } from "react-cookie";
+import { useRouter } from "next/navigation";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
+  const [cookies, setCookie] = useCookies(["colony"]);
+  const router = useRouter();
+  console.log(cookies);
+
+  if (!cookies.colony) {
+    router.push("/signin");
+    setCookie("colony", "");
+    return null;
+  }
 
   // const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
@@ -16,6 +27,7 @@ const AppHeader: React.FC = () => {
   //     toggleMobileSidebar();
   //   }
   // };
+  
 
   const toggleApplicationMenu = () => {
     setApplicationMenuOpen(!isApplicationMenuOpen);
