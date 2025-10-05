@@ -5,33 +5,12 @@ import UserDropdown from "@/components/header/UserDropdown";
 import React, { useState ,useEffect,useRef} from "react";
 import { useCookies } from "react-cookie";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
-  const [cookies, setCookie] = useCookies(["colony"]);
+  const [cookies, setCookie] = useCookies(["colony", "password@"]);
   const router = useRouter();
-  console.log(cookies);
-
-  if (!cookies.colony) {
-    router.push("/signin");
-    setCookie("colony", "");
-    return null;
-  }
-
-  // const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
-
-  // const handleToggle = () => {
-  //   if (window.innerWidth >= 1024) {
-  //     toggleSidebar();
-  //   } else {
-  //     toggleMobileSidebar();
-  //   }
-  // };
-  
-
-  const toggleApplicationMenu = () => {
-    setApplicationMenuOpen(!isApplicationMenuOpen);
-  };
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,6 +27,42 @@ const AppHeader: React.FC = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+
+  const handleCheck = React.useCallback(async () => {  // Добавил async для удобства (если нужно await)
+    try {
+      const response = await axios.post("/api/login", { id: cookies.colony, password: cookies["password@"] });
+
+      console.log("Успешный вход:", response.data.userId);
+    } catch {
+      console.error("Ошибка входа:");
+      alert("Ошибка входа. Проверьте ID и пароль.");
+      router.push('/signin');
+      setCookie("colony", "");
+      setCookie("password@", "");
+    }
+  }, [cookies, router, setCookie]);
+
+  useEffect(() => {
+    handleCheck();
+  }, [cookies, handleCheck]);
+
+  
+
+  // const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+
+  // const handleToggle = () => {
+  //   if (window.innerWidth >= 1024) {
+  //     toggleSidebar();
+  //   } else {
+  //     toggleMobileSidebar();
+  //   }
+  // };
+  
+
+  const toggleApplicationMenu = () => {
+    setApplicationMenuOpen(!isApplicationMenuOpen);
+  };
 
   return (
     <header className="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:border-b">

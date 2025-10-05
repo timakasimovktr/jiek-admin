@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [cookies, setCookie] = useCookies(["colony"]);
+  const [cookies, setCookie] = useCookies(["colony", "password@"]);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {  // Добавил async для удобства (если нужно await)
@@ -24,6 +24,7 @@ export default function SignInForm() {
 
       console.log("Успешный вход:", response.data.userId);
       setCookie("colony", data.id);
+      setCookie("password@", data.password);
       router.push('/');
     } catch {
       console.error("Ошибка входа:");
