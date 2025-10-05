@@ -398,8 +398,7 @@
     return (
       <>
         <div className="flex justify-between mb-6">
-          <div className="text-black dark:text-white flex w-full">
-            <h2 className="text-2xl font-bold">изменить количество дней на - </h2>
+          <div className="text-black dark:text-white flex">
             <div className="flex gap-2">
               <input
                 type="number"
@@ -410,6 +409,7 @@
                 value={changeRoomsCount}
                 onChange={(e) => setChangeRoomsCount(Number(e.target.value))}
               />
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-2 ml-2">Макс 3 дня</div>
             </div>
           </div>
           <div className="flex gap-2">
