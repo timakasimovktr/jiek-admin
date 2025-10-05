@@ -9,8 +9,11 @@ import { useRouter } from "next/navigation";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [cookies, setCookie] = useCookies(["colony", "password@"]);
+  const [cookies, setCookie, removeCookie] = useCookies(["colony", "password@"]);
   const router = useRouter();
+  
+  removeCookie("colony");
+  removeCookie("password@");
 
   const handleSubmit = async (e: React.FormEvent) => {  // Добавил async для удобства (если нужно await)
     e.preventDefault();
