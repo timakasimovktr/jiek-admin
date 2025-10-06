@@ -10,7 +10,7 @@
   import Badge from "../ui/badge/Badge";
   import Button from "@/components/ui/button/Button";
   import axios from "axios";
-  import { Document, Packer, Paragraph, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, TextRun, WidthType } from "docx";
+  import { Document, Packer, Paragraph, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, TextRun, WidthType, PageOrientation } from "docx";
   import { saveAs } from "file-saver";
 
   interface Relative {
@@ -267,7 +267,7 @@
                         children: order.relatives.map(
                           (r, i) =>
                             new Paragraph({
-                              children: [new TextRun({ text: `${i + 1}) ${r.full_name}, Паспорт: ${r.passport}`, size: 20, font: "Arial" })],
+                              children: [new TextRun({ text: `${i + 1}) ${r.full_name}`, size: 20, font: "Arial" })],
                               spacing: { after: 100 },
                             })
                         ),
@@ -296,65 +296,90 @@
 
       if (pending.length === 0) return;
 
+      const table = new DocxTable({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          // Шапка таблицы
+          new DocxTableRow({
+            children: [
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Дата подачи", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Заключенный", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Тип посещения", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Посетители", bold: true, font: "Arial", size: 20 })] })],
+              }),
+            ],
+          }),
+          // Данные
+          ...pending.map(
+            (order) =>
+              new DocxTableRow({
+                children: [
+                  new DocxTableCell({
+                    children: [
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: new Date(order.created_at).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" }),
+                            font: "Arial",
+                            size: 20,
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: order.prisoner_name, font: "Arial", size: 20 })] })],
+                  }),
+                  new DocxTableCell({
+                    children: [
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня",
+                            font: "Arial",
+                            size: 20,
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                  new DocxTableCell({
+                    children: order.relatives.map(
+                      (r, i) =>
+                        new Paragraph({
+                          children: [
+                            new TextRun({
+                              text: `${i + 1}) ${r.full_name}, Паспорт: ${r.passport}`,
+                              font: "Arial",
+                              size: 20,
+                            }),
+                          ],
+                          spacing: { after: 100 },
+                        })
+                    ),
+                  }),
+                ],
+              })
+          ),
+        ],
+      });
+
       const doc = new Document({
         sections: [
           {
-            properties: {},
-            children: pending.flatMap((order) => [
-              
-              new DocxTable({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: [
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: "Дата подачи", bold: true, size: 20, font: "Arial" })] })],
-                      }),
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: new Date(order.created_at).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" }), size: 20, font: "Arial" })] })],
-                      }),
-                    ],
-                  }),
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: "Заключенный", bold: true, size: 20, font: "Arial" })] })],
-                      }),
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: order.prisoner_name, size: 20, font: "Arial" })] })],
-                      }),
-                    ],
-                  }),
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: "Тип посещения", bold: true, size: 20, font: "Arial" })] })],
-                      }),
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня", size: 20, font: "Arial" })] })],
-                      }),
-                    ],
-                  }),
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [new Paragraph({ children: [new TextRun({ text: "Посетители", bold: true, size: 20, font: "Arial" })] })],
-                      }),
-                      new DocxTableCell({
-                        children: order.relatives.map(
-                          (r, i) =>
-                            new Paragraph({
-                              children: [new TextRun({ text: `${i + 1}) ${r.full_name}, Паспорт: ${r.passport}`, size: 20, font: "Arial" })],
-                              spacing: { after: 100 },
-                            })
-                        ),
-                      }),
-                    ],
-                  }),
-                ],
-              }),
-              new Paragraph({ children: [], spacing: { after: 200 } }),
-            ]),
+            properties: {
+              page: {
+                size: { orientation: PageOrientation.LANDSCAPE }, // альбомная ориентация
+              },
+            },
+            children: [table],
           },
         ],
       });
@@ -631,7 +656,7 @@
                       {Array.isArray(selectedOrder.relatives) && selectedOrder.relatives.length > 0 ? (
                         selectedOrder.relatives.map((r, i) => (
                           <li key={i}>
-                            {r.full_name} (паспорт: {r.passport})
+                            {r.full_name}
                           </li>
                         ))
                       ) : (
