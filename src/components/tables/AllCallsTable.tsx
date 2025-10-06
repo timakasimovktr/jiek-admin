@@ -10,7 +10,7 @@
   import Badge from "../ui/badge/Badge";
   import Button from "@/components/ui/button/Button";
   import axios from "axios";
-  import { Document, Packer, Paragraph, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, TextRun, WidthType, PageOrientation, AlignmentType} from "docx";
+  import { Document, Packer, Paragraph, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, TextRun, WidthType, PageOrientation} from "docx";
   import { saveAs } from "file-saver";
 
   interface Relative {
