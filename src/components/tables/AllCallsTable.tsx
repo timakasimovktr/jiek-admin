@@ -58,8 +58,8 @@
     }, []);
 
     useEffect(() => {
-      setInterval(fetchData, 60000); // Обновление каждые 60 секунд  
-      setInterval(fetchRoomsCount, 60000); // Обновление каждые 60 секунд  
+      setInterval(fetchData, 300000); // Обновление каждые 60 секунд  
+      setInterval(fetchRoomsCount, 300000); // Обновление каждые 60 секунд  
     }, []);
 
     const fetchData = async () => {
