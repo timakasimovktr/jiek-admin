@@ -23,7 +23,7 @@ export default function SignInForm() {
       const response = await axios.post("/api/login", { id: +data.id, password: data.password });
 
       console.log("Успешный вход:", response.data.userId);
-      setCookie("colony", data.id);
+      setCookie("colony", Number(data.id));
       setCookie("password@", data.password);
       router.push('/');
     } catch {
