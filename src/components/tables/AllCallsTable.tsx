@@ -427,7 +427,7 @@
                 min="1"
                 max="3"
                 className="border p-2 rounded-xl w-[100px] text-black dark:text-white"
-                placeholder="Дни"
+                placeholder="Дни (1-3)"
                 value={changeRoomsCount}
                 onChange={(e) => setChangeRoomsCount(Number(e.target.value))}
               />
