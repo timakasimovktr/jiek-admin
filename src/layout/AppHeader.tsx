@@ -28,7 +28,7 @@ const AppHeader: React.FC = () => {
     };
   }, []);
 
-
+ 
   const handleCheck = React.useCallback(async () => {  // Добавил async для удобства (если нужно await)
     debugger;
     try {
