@@ -4,8 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { RowDataPacket } from "mysql2/promise";
 
-// const ADMIN_CHAT_ID = "-1003014693175";
-
 interface BookingRow extends RowDataPacket {
   prisoner_name: string;
   created_at: string;

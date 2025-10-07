@@ -15,7 +15,6 @@ export async function GET() {
       );
     }
 
-    // используем плейсхолдеры, чтобы не было SQL injection
     const [rows] = await pool.query(
       `SELECT * FROM bookings 
        WHERE relatives != '[]' 

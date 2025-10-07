@@ -58,8 +58,8 @@
     }, []);
 
     useEffect(() => {
-      setInterval(fetchData, 300000); // Обновление каждые 60 секунд  
-      setInterval(fetchRoomsCount, 300000); // Обновление каждые 60 секунд  
+      setInterval(fetchData, 300000); 
+      setInterval(fetchRoomsCount, 300000);
     }, []);
 
     const fetchData = async () => {
@@ -94,8 +94,7 @@
     try {
       await axios.post("/api/rooms-count", { count: roomsCount });
       console.log("Saved rooms count:", roomsCount); // Лог
-      // Опционально: перезагрузить данные после сохранения
-      // fetchData();
+      fetchData();
     } catch (err) {
       console.error("Error saving rooms count:", err);
       alert("Ошибка сохранения");
@@ -299,7 +298,6 @@
       const table = new DocxTable({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          // Шапка таблицы
           new DocxTableRow({
             children: [
               new DocxTableCell({
@@ -316,7 +314,6 @@
               }),
             ],
           }),
-          // Данные
           ...pending.map(
             (order) =>
               new DocxTableRow({
@@ -376,7 +373,7 @@
           {
             properties: {
               page: {
-                size: { orientation: PageOrientation.LANDSCAPE }, // альбомная ориентация
+                size: { orientation: PageOrientation.LANDSCAPE },
               },
             },
             children: [table],
@@ -441,7 +438,7 @@
             <input
               type="number"
               min="1"
-              max="50" // Добавьте max для валидации
+              max="50" 
               className="border p-2 rounded-xl w-[100px] text-black dark:text-white"
               placeholder="Комнаты"
               value={roomsCount}
@@ -619,7 +616,7 @@
                       <TableCell className="px-5 py-3 text-black dark:text-white">
                         {order.start_datetime && order.status === "approved"
                           ? `${new Date(
-                                new Date(order.start_datetime).getTime() + 1 * 24 * 60 * 60 * 1000 // +1 день только к начальной
+                                new Date(order.start_datetime).getTime() + 1 * 24 * 60 * 60 * 1000 
                               ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
                           : "-"}
                       </TableCell>

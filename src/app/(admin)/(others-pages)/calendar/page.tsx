@@ -7,7 +7,6 @@ export const metadata: Metadata = {
   title: "Next.js Calender | Smartmeet Uzbekistan - Next.js Dashboard Template",
   description:
     "This is Next.js Calender page for Smartmeet Uzbekistan  Tailwind CSS Admin Dashboard Template",
-  // other metadata
 };
 export default function page() {
   return (

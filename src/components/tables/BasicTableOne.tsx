@@ -25,7 +25,6 @@ interface Order {
   budget: string;
 }
 
-// Define the table data using the interface
 const tableData: Order[] = [
   {
     id: 1,

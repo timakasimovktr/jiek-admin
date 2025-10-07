@@ -7,12 +7,6 @@ import { RowDataPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
-// const ADMIN_CHAT_ID = "-1003014693175";
-
-// interface Relative {
-//   full_name: string;
-//   passport: string;
-// }
 
 interface BookingRow extends RowDataPacket {
   visit_type: string;

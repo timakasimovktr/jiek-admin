@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
     }
 
-    // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
       [colony]
@@ -42,7 +41,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
     }
 
-    // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
       console.error("Invalid count:", count);
       return NextResponse.json(
@@ -51,7 +49,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Проверка валидности days
     if (typeof days !== "number" || days < 1 || days > 3) {
       console.error("Invalid days:", days);
       return NextResponse.json(
@@ -60,36 +57,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Received count from UI:", count); // Лог: полученное количество заявок
-    console.log("Received days from UI:", days); // Лог: полученное количество дней
+    console.log("Received count from UI:", count); 
+    console.log("Received days from UI:", days);
 
-    // Определение нового visit_type на основе days
     const newVisitType: "short" | "long" | "extra" = days === 1 ? "short" : days === 2 ? "long" : "extra";
 
-    // Получение pending-заявок (ограничено count)
     const [pendingRows] = await pool.query<Booking[]>(
       `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
       [colony, count]
     );
 
-    console.log("Pending bookings found:", pendingRows.length); // Лог: сколько pending найдено
+    console.log("Pending bookings found:", pendingRows.length); 
 
     if (pendingRows.length === 0) {
       console.log("No pending bookings to process");
       return NextResponse.json({ message: "Kutilayotgan arizalar yo'q" }, { status: 200 });
     }
 
-    let changedCount = 0; // Счетчик успешно измененных заявок
+    let changedCount = 0; 
     const changedBookings: { bookingId: number; newDays: number; newVisitType: string }[] = [];
 
     for (const booking of pendingRows) {
-      // Если текущий visit_type уже совпадает с новым, пропускаем
       if (booking.visit_type === newVisitType) {
         console.log(`Skipping booking ${booking.id} - visit_type already ${newVisitType}`);
         continue;
       }
 
-      // Обновление visit_type
       await pool.query(
         `UPDATE bookings SET visit_type = ? WHERE id = ? AND colony = ?`,
         [newVisitType, booking.id, colony]
@@ -98,7 +91,6 @@ export async function POST(req: NextRequest) {
       changedCount++;
       changedBookings.push({ bookingId: booking.id, newDays: days, newVisitType });
 
-      // Парсинг relatives
       let relatives: Relative[] = [];
       try {
         relatives = JSON.parse(booking.relatives);
@@ -137,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     console.log(
       `Batch processing completed: ${changedCount} bookings changed out of ${pendingRows.length}`
-    ); // Финальный лог
+    );
 
     return NextResponse.json({ success: true, changedBookings, changedCount });
   } catch (err) {

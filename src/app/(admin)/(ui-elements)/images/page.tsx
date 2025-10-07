@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   title: "Next.js Images | Smartmeet Uzbekistan - Next.js Dashboard Template",
   description:
     "This is Next.js Images page for Smartmeet Uzbekistan - Next.js Tailwind CSS Admin Dashboard Template",
-  // other metadata
 };
 
 export default function Images() {

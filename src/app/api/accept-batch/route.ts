@@ -39,7 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
     }
 
-    // get ADMIN_CHAT_ID from db admin table where id is colony number
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
       [colony]
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
 
     const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
 
-    // Проверка валидности count
     if (typeof count !== "number" || count <= 0 || count > 50) {
       console.error("Invalid count:", count);
       return NextResponse.json(
@@ -60,9 +58,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Received count from UI:", count); // Лог: полученное количество заявок
+    console.log("Received count from UI:", count); 
 
-    // Чтение количества комнат из settings
     const [settingsRows] = await pool.query<SettingsRow[]>(
       `SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`
     );
@@ -72,12 +69,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rooms = Number(settingsRows[0]?.value) || 10;
-    console.log("Rooms count from DB:", rooms); // Лог: кол-во комнат из БД
+    console.log("Rooms count from DB:", rooms); 
 
-    // Если хотите, чтобы rooms = count (UI переопределяет rooms):
-    // rooms = count; // Раскомментируйте, если нужно синхронизировать
 
-    // Проверка несоответствия count и rooms
     if (rooms !== count) {
       console.warn(`Mismatch detected: UI count=${count}, DB rooms=${rooms}`);
     }

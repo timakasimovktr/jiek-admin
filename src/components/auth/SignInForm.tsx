@@ -12,7 +12,7 @@ export default function SignInForm() {
   const [cookies, setCookie] = useCookies(["colony", "password@"]);
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {  // Добавил async для удобства (если нужно await)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log(cookies);
     const form = e.target as HTMLFormElement;
@@ -29,7 +29,6 @@ export default function SignInForm() {
     } catch {
       console.error("Ошибка входа:");
       alert("Ошибка входа. Проверьте ID и пароль.");
-      // Обработка ошибок (например, показать toast с ошибкой)
     }
   };
 
