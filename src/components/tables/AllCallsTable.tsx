@@ -12,6 +12,7 @@
   import axios from "axios";
   import { Document, Packer, Paragraph, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, TextRun, WidthType, PageOrientation} from "docx";
   import { saveAs } from "file-saver";
+  import { useRouter } from "next/navigation";
 
   interface Relative {
     full_name: string;
@@ -44,6 +45,8 @@
     const [approvedDays, setApprovedDays] = useState<number>(1);
     const [changeRoomsCount, setChangeRoomsCount] = useState<number>(1);
     const [roomsCount, setRoomsCount] = useState<number>(0);
+    const router = useRouter();
+    
 
     const statusMap: Record<string, string> = {
       approved: "Подтверждено",
@@ -397,6 +400,10 @@
       }
     };
 
+    const handleChangeSanitary = async () => {
+      router.push("/sanitary");
+    };
+
     const handleChangeDays = async () => {
       if (roomsCount <= 0) return;
       if (changeRoomsCount <= 0) {
@@ -433,6 +440,9 @@
               />
               <Button size="xs" variant="primary" onClick={handleChangeDays}>
                 Изменить дни для {roomsCount} заявлений
+              </Button>
+              <Button size="xs" variant="red" onClick={handleChangeSanitary}>
+                Указать санитарные дни
               </Button>
             </div>
           </div>

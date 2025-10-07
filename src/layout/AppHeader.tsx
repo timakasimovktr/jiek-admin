@@ -43,7 +43,7 @@ const AppHeader: React.FC = () => {
   }, [cookies, router, setCookie]);
 
   useEffect(() => {
-    handleCheck();
+    // handleCheck();
   }, [cookies, handleCheck]);
 
   
@@ -76,7 +76,7 @@ const AppHeader: React.FC = () => {
               src="./images/logo/logo-dark.svg"
               alt="Logo"
             /> */}
-            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <span onClick={() => router.push('/')} className="text-lg cursor-pointer font-semibold text-gray-900 dark:text-gray-100">
               Smart Dunyo Meet Admin {cookies.colony}
             </span>
           </div>
