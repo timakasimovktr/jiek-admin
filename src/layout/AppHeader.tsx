@@ -27,7 +27,6 @@ const AppHeader: React.FC = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
  
   const handleCheck = React.useCallback(async () => {  // Добавил async для удобства (если нужно await)
     debugger;
