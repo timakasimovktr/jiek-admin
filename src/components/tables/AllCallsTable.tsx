@@ -431,7 +431,9 @@
                 value={changeRoomsCount}
                 onChange={(e) => setChangeRoomsCount(Number(e.target.value))}
               />
-              <div className="text-md text-gray-500 dark:text-gray-400 mt-2 ml-2">Макс 3 дня</div>
+              <Button size="xs" variant="primary" onClick={handleChangeDays}>
+                Изменить дни для {roomsCount} заявлений
+              </Button>
             </div>
           </div>
           <div className="flex gap-2">
@@ -450,9 +452,6 @@
             </Button>
             <Button size="xs" variant="outline" onClick={handlePrintBatch}>
               Печать заявлений
-            </Button>
-            <Button size="xs" variant="primary" onClick={handleChangeDays}>
-              Изменить дни
             </Button>
             <Button size="xs" variant="green" onClick={handleAcceptBatch}>
               Принять заявления
