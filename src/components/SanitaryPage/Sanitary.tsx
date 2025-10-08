@@ -25,15 +25,15 @@ const Sanitary: React.FC = () => {
     const dateStr = clickInfo.dateStr;
 
     // Toggle logic
-    const existingEventIndex = events.findIndex((event) => event.start === dateStr); // Изменено: start вместо startStr
+    const existingEventIndex = events.findIndex((event) => event.start === dateStr);
 
     if (existingEventIndex !== -1) {
       // Remove
-      const updatedEvents = events.filter((event) => event.start !== dateStr); // Изменено: start вместо startStr
+      const updatedEvents = events.filter((event) => event.start !== dateStr);
       setEvents(updatedEvents);
 
       try {
-        await fetch("/change-sanitary", {
+        await fetch("/api/change-sanitary", {  // Изменено: добавлен /api/
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: dateStr, action: "remove" }),
@@ -53,7 +53,7 @@ const Sanitary: React.FC = () => {
       setEvents(updatedEvents);
 
       try {
-        await fetch("/change-sanitary", {
+        await fetch("/api/change-sanitary", {  // Изменено: добавлен /api/
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: dateStr, action: "add" }),
@@ -66,12 +66,12 @@ const Sanitary: React.FC = () => {
   };
 
   const handleEventClick = async (clickInfo: EventClickArg) => {
-    const dateStr = clickInfo.event.startStr; // Здесь startStr ок, т.к. это EventApi
-    const updatedEvents = events.filter((event) => event.start !== dateStr); // Изменено: start вместо startStr
+    const dateStr = clickInfo.event.startStr;
+    const updatedEvents = events.filter((event) => event.start !== dateStr);
     setEvents(updatedEvents);
 
     try {
-      await fetch("/change-sanitary", {
+      await fetch("/api/change-sanitary", {  // Изменено: добавлен /api/
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: dateStr, action: "remove" }),
@@ -84,7 +84,7 @@ const Sanitary: React.FC = () => {
 
   // Load initial events
   useEffect(() => {
-    fetch("/get-sanitary")
+    fetch("/api/get-sanitary")  // Изменено: добавлен /api/
       .then((res) => res.json())
       .then((data: { date: string }[]) =>
         setEvents(
