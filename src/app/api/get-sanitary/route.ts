@@ -15,11 +15,11 @@ export async function GET() {
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      "SELECT date FROM sanitary_days WHERE colony = ?",
+      "SELECT DATE_FORMAT(date, '%Y-%m-%d') AS date FROM sanitary_days WHERE colony = ?",
       [colony]
     );
 
-    return NextResponse.json(rows.map(row => ({ date: row.date.toISOString().slice(0, 10) })));
+    return NextResponse.json(rows.map(row => ({ date: row.date })));
   } catch (err) {
     console.error("DB error:", err);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
