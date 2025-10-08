@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const newVisitType: "short" | "long" | "extra" = days === 1 ? "short" : days === 2 ? "long" : "extra";
 
     const [pendingRows] = await pool.query<Booking[]>(
-      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
       [colony, count]
     );
 
