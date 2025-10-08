@@ -66,11 +66,10 @@ export async function POST(req: NextRequest) {
       const dayStr = day.toISOString().slice(0, 10);
       const nextDay = new Date(day);
       nextDay.setDate(nextDay.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().slice(0, 10);
 
       const [sanitaryRows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND (date = ? OR date = ?)`,
-        [colony, dayStr, nextDayStr]
+        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
+        [colony, dayStr]
       );
 
       if (sanitaryRows[0].cnt > 0) {
