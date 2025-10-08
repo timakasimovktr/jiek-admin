@@ -1,3 +1,5 @@
+// api/accept-booking/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -56,6 +58,31 @@ export async function POST(req: NextRequest) {
     startDate.setHours(0, 0, 0, 0);
     const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
 
+    // Проверка на санитарные дни
+    let isSanitaryFree = true;
+    for (let d = 0; d < daysToAdd; d++) {
+      const day = new Date(startDate);
+      day.setDate(day.getDate() + d);
+      const dayStr = day.toISOString().slice(0, 10);
+      const nextDay = new Date(day);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
+
+      const [sanitaryRows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND (date = ? OR date = ?)`,
+        [colony, dayStr, nextDayStr]
+      );
+
+      if (sanitaryRows[0].cnt > 0) {
+        isSanitaryFree = false;
+        break;
+      }
+    }
+
+    if (!isSanitaryFree) {
+      return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями или днями перед ними" }, { status: 400 });
+    }
+
     const [settingsRows] = await pool.query<RowDataPacket[]>(`SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`);
     const rooms = Number(settingsRows[0]?.value) || 10;
     let assignedRoomId: number | null = null;
@@ -111,7 +138,7 @@ export async function POST(req: NextRequest) {
     👤 Arizachi: ${relativeName}
     📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
     ⌚ Kelish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-    🏛️ Koloniya: ${booking.colony}
+    🏛️ Koloniya: ${colony}
     🚪 Xona: ${assignedRoomId}
     🟢 Holat: Tasdiqlandi
     `;
@@ -122,7 +149,7 @@ export async function POST(req: NextRequest) {
     📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
     ⌚ Kelish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
     ⏲️ Turi: ${booking.visit_type === "long" ? "2 kunlik" : booking.visit_type === "short" ? "1 kunlik" : "3 kunlik"}
-    🏛️ Koloniya: ${booking.colony}
+    🏛️ Koloniya: ${colony}
     🚪 Xona: ${assignedRoomId}
     🟢 Holat: Tasdiqlandi
     `;

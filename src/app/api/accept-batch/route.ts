@@ -1,3 +1,5 @@
+// api/accept-batch/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -103,6 +105,31 @@ export async function POST(req: NextRequest) {
 
       // Попытка найти свободную комнату (до 60 дней вперед)
       for (let tries = 0; tries < 60; tries++) {
+        let isSanitaryFree = true;
+        for (let d = 0; d < duration; d++) {
+          const day = new Date(start);
+          day.setDate(day.getDate() + d);
+          const dayStr = day.toISOString().slice(0, 10);
+          const nextDay = new Date(day);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const nextDayStr = nextDay.toISOString().slice(0, 10);
+
+          const [sanitaryRows] = await pool.query<CountRow[]>(
+            `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND (date = ? OR date = ?)`,
+            [colony, dayStr, nextDayStr]
+          );
+
+          if (sanitaryRows[0].cnt > 0) {
+            isSanitaryFree = false;
+            break;
+          }
+        }
+
+        if (!isSanitaryFree) {
+          start.setDate(start.getDate() + 1);
+          continue;
+        }
+
         for (let roomId = 1; roomId <= rooms; roomId++) {
           let canFit = true;
           for (let d = 0; d < duration; d++) {
