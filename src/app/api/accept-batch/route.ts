@@ -106,41 +106,26 @@ export async function POST(req: NextRequest) {
       // Попытка найти свободную комнату (до 60 дней вперед)
       for (let tries = 0; tries < 60; tries++) {
         let isSanitaryFree = true;
+        for (let d = 0; d < duration; d++) {
+          const day = new Date(start);
+          day.setDate(day.getDate() + d);
+          const dayStr = day.toISOString().slice(0, 10);
+          const nextDay = new Date(day);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const nextDayStr = nextDay.toISOString().slice(0, 10);
 
-        // ✅ ИСПРАВЛЕНИЕ: Вычисляем день ПЕРЕД НАЧАЛОМ визита ОДИН РАЗ
-        const prevDay = new Date(start);
-        prevDay.setDate(prevDay.getDate() - 1);
-        const prevDayStr = prevDay.toISOString().slice(0, 10);
+          const [sanitaryRows] = await pool.query<CountRow[]>(
+            `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND (date = ? OR date = ?)`,
+            [colony, dayStr, nextDayStr]
+          );
 
-        // Проверяем день перед визитом
-        const [prevSanitaryRows] = await pool.query<CountRow[]>(
-          `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-          [colony, prevDayStr]
-        );
-
-        if (prevSanitaryRows[0].cnt > 0) {
-          isSanitaryFree = false;
-        } else {
-          // Проверяем все дни визита
-          for (let d = 0; d < duration; d++) {
-            const day = new Date(start);
-            day.setDate(day.getDate() + d);
-            const dayStr = day.toISOString().slice(0, 10);
-
-            const [sanitaryRows] = await pool.query<CountRow[]>(
-              `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-              [colony, dayStr]
-            );
-
-            if (sanitaryRows[0].cnt > 0) {
-              isSanitaryFree = false;
-              break;
-            }
+          if (sanitaryRows[0].cnt > 0) {
+            isSanitaryFree = false;
+            break;
           }
         }
 
         if (!isSanitaryFree) {
-          console.log(`Sanitary block for start=${start.toISOString().slice(0, 10)}, prevDay=${prevDayStr}`); // Отладка
           start.setDate(start.getDate() + 1);
           continue;
         }

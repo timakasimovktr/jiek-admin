@@ -60,40 +60,26 @@ export async function POST(req: NextRequest) {
 
     // Проверка на санитарные дни
     let isSanitaryFree = true;
+    for (let d = 0; d < daysToAdd; d++) {
+      const day = new Date(startDate);
+      day.setDate(day.getDate() + d);
+      const dayStr = day.toISOString().slice(0, 10);
+      const nextDay = new Date(day);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
 
-    // ✅ ИСПРАВЛЕНИЕ: День перед НАЧАЛОМ визита
-    const prevDay = new Date(startDate);
-    prevDay.setDate(prevDay.getDate() - 1);
-    const prevDayStr = prevDay.toISOString().slice(0, 10);
+      const [sanitaryRows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND (date = ? OR date = ?)`,
+        [colony, dayStr, nextDayStr]
+      );
 
-    const [prevSanitaryRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-      [colony, prevDayStr]
-    );
-
-    if (prevSanitaryRows[0].cnt > 0) {
-      isSanitaryFree = false;
-    } else {
-      // Проверяем все дни визита
-      for (let d = 0; d < daysToAdd; d++) {
-        const day = new Date(startDate);
-        day.setDate(day.getDate() + d);
-        const dayStr = day.toISOString().slice(0, 10);
-
-        const [sanitaryRows] = await pool.query<RowDataPacket[]>(
-          `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-          [colony, dayStr]
-        );
-
-        if (sanitaryRows[0].cnt > 0) {
-          isSanitaryFree = false;
-          break;
-        }
+      if (sanitaryRows[0].cnt > 0) {
+        isSanitaryFree = false;
+        break;
       }
     }
 
     if (!isSanitaryFree) {
-      console.log(`Sanitary block for assignedDate=${assignedDate}, prevDay=${prevDayStr}`); // Отладка
       return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями или днями перед ними" }, { status: 400 });
     }
 
