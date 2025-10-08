@@ -56,6 +56,15 @@
     };
 
     useEffect(() => {
+      if (selectedOrder && modalType === "view") {
+        const createdDate = new Date(selectedOrder.created_at);
+        const min = new Date(createdDate);
+        min.setDate(min.getDate() + 10);
+        setAssignedDate(min.toISOString().split("T")[0]); // Default to min
+      }
+    }, [selectedOrder, modalType]);
+
+    useEffect(() => {
       fetchData();
       fetchRoomsCount();
     }, []);
@@ -625,7 +634,7 @@
                       <TableCell className="px-5 py-3 text-black dark:text-white">
                         {order.start_datetime && order.status === "approved"
                           ? `${new Date(
-                                new Date(order.start_datetime).getTime() + 1 * 24 * 60 * 60 * 1000 
+                                new Date(order.start_datetime).getTime()
                               ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
                           : "-"}
                       </TableCell>
@@ -680,7 +689,7 @@
                       type="date"
                       className="border p-2 rounded w-full text-black dark:text-white"
                       value={assignedDate}
-                      min={minDateStr}
+                      min={selectedOrder ? new Date(new Date(selectedOrder.created_at).setDate(new Date(selectedOrder.created_at).getDate() + 10)).toISOString().split("T")[0] : minDateStr}
                       onChange={(e) => setAssignedDate(e.target.value)}
                     />
                     <div className="flex gap-2 mt-4">

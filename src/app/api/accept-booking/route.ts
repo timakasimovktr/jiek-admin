@@ -1,5 +1,3 @@
-// api/accept-booking/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -54,6 +52,16 @@ export async function POST(req: NextRequest) {
     const booking = rows[0];
     const daysToAdd = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
 
+    // Проверка min date: assignedDate >= created_at + 10 дней
+    const createdDate = new Date(booking.created_at);
+    const minDate = new Date(createdDate);
+    minDate.setDate(minDate.getDate() + 10);
+    minDate.setHours(0, 0, 0, 0);
+    const assigned = new Date(assignedDate);
+    if (assigned < minDate) {
+      return NextResponse.json({ error: "Дата посещения должна быть не ранее 10 дней после создания заявки" }, { status: 400 });
+    }
+
     const startDate = new Date(assignedDate);
     startDate.setHours(0, 0, 0, 0);
     const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
@@ -64,8 +72,6 @@ export async function POST(req: NextRequest) {
       const day = new Date(startDate);
       day.setDate(day.getDate() + d);
       const dayStr = day.toISOString().slice(0, 10);
-      const nextDay = new Date(day);
-      nextDay.setDate(nextDay.getDate() + 1);
 
       const [sanitaryRows] = await pool.query<RowDataPacket[]>(
         `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isSanitaryFree) {
-      return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями или днями перед ними" }, { status: 400 });
+      return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями" }, { status: 400 });
     }
 
     const [settingsRows] = await pool.query<RowDataPacket[]>(`SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`);
@@ -95,8 +101,16 @@ export async function POST(req: NextRequest) {
         const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
 
         const [occupiedRows] = await pool.query<RowDataPacket[]>(
-          "SELECT COUNT(*) as cnt FROM bookings WHERE status = 'approved' AND room_id = ? AND start_datetime <= ? AND end_datetime >= ? AND colony = ?",
-          [roomId, dayEnd, dayStart, colony]
+          `SELECT COUNT(*) as cnt FROM bookings 
+           WHERE status = 'approved' 
+           AND room_id = ? 
+           AND colony = ? 
+           AND (
+             (start_datetime <= ? AND end_datetime >= ?) OR 
+             (start_datetime <= ? AND end_datetime >= ?) OR 
+             (start_datetime >= ? AND end_datetime <= ?)
+           )`,
+          [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
         );
 
         if (occupiedRows[0].cnt > 0) {
@@ -114,14 +128,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Нет доступных комнат на выбранные даты" }, { status: 400 });
     }
 
+    // Правильный расчет end_datetime (конец последнего дня)
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + daysToAdd - 1);
+    const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
+
     const [result] = await pool.query(
       `UPDATE bookings 
        SET status = 'approved', 
            start_datetime = ?, 
-           end_datetime = DATE_ADD(?, INTERVAL ? DAY),
+           end_datetime = ?,
            room_id = ?
        WHERE id = ? AND colony = ?`,
-      [startDateStr, startDateStr, daysToAdd, assignedRoomId, bookingId, colony]
+      [startDateStr, endDateStr, assignedRoomId, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };

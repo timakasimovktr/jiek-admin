@@ -23,6 +23,7 @@
     "apexcharts": "^4.3.0",
     "autoprefixer": "^10.4.20",
     "axios": "^1.11.0",
+    "date-fns-tz": "^3.2.0",
     "docx": "^9.5.1",
     "file-saver": "^2.0.5",
     "flatpickr": "^4.6.13",

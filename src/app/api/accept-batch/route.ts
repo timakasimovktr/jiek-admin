@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { addDays } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -95,10 +97,9 @@ export async function POST(req: NextRequest) {
 
     for (const booking of pendingRows) {
       const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      const createdDate = new Date(booking.created_at);
-      const minDate = new Date(createdDate);
-      minDate.setDate(minDate.getDate() + 10);
-      minDate.setHours(0, 0, 0, 0);
+      const timeZone = 'Asia/Tashkent';
+      const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
+      const minDate = addDays(createdDateZoned, 10);
       const start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
@@ -138,17 +139,17 @@ export async function POST(req: NextRequest) {
             const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
 
             // Проверка пересечения дат
-            const [occupiedRows] = await pool.query<CountRow[]>(
+            const [occupiedRows] = await pool.query<RowDataPacket[]>(
               `SELECT COUNT(*) as cnt FROM bookings 
-               WHERE status = 'approved' 
-               AND colony = ? 
-               AND room_id = ? 
-               AND (
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime >= ? AND end_datetime <= ?)
-               )`,
-              [colony, roomId, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
+              WHERE status = 'approved' 
+              AND room_id = ? 
+              AND colony = ? 
+              AND (
+                (start_datetime <= ? AND end_datetime >= ?) OR 
+                (start_datetime <= ? AND end_datetime >= ?) OR 
+                (start_datetime >= ? AND end_datetime <= ?)
+              )`,
+              [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
             );
 
             if (occupiedRows[0].cnt > 0) {
