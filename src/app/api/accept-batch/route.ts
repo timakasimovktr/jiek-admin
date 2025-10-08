@@ -1,5 +1,3 @@
-// api/accept-batch/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
@@ -122,6 +120,24 @@ export async function POST(req: NextRequest) {
           if (sanitaryRows[0].cnt > 0) {
             isSanitaryFree = false;
             break;
+          }
+        }
+
+        // ADDED: Проверка дня после end_datetime (если следующий день санитарный, блокируем)
+        if (isSanitaryFree) {
+          const endDay = new Date(start);
+          endDay.setDate(endDay.getDate() + duration - 1);
+          const nextDayAfterEnd = new Date(endDay);
+          nextDayAfterEnd.setDate(nextDayAfterEnd.getDate() + 1);
+          const nextDayStr = nextDayAfterEnd.toISOString().slice(0, 10);
+
+          const [sanitaryNextRows] = await pool.query<CountRow[]>(
+            `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
+            [colony, nextDayStr]
+          );
+
+          if (sanitaryNextRows[0].cnt > 0) {
+            isSanitaryFree = false;
           }
         }
 

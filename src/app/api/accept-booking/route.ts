@@ -84,6 +84,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ADDED: Проверка дня после end_datetime (если следующий день санитарный, блокируем)
+    if (isSanitaryFree) {
+      const endDay = new Date(startDate);
+      endDay.setDate(endDay.getDate() + daysToAdd - 1);
+      const nextDay = new Date(endDay);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
+
+      const [sanitaryNextRows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
+        [colony, nextDayStr]
+      );
+
+      if (sanitaryNextRows[0].cnt > 0) {
+        isSanitaryFree = false;
+      }
+    }
+
     if (!isSanitaryFree) {
       return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями" }, { status: 400 });
     }
