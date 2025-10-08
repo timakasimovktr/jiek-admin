@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       const relativeName = relatives[0]?.full_name || "N/A";
 
       const messageBot = `
-📝 Ariza №${booking.id} kunlari o'zgartirildi!
+📝 Ariza №${booking.colony_application_number} kunlari o'zgartirildi!
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
         day: "2-digit",

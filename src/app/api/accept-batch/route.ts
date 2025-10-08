@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
 
       // Сообщения для Telegram
       const messageGroup = `
-🎉 Ariza tasdiqlandi. Raqam: ${booking.id}
+🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
         day: "2-digit",
@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
 `;
 
       const messageBot = `
-🎉 Ariza №${booking.id} tasdiqlandi!
+🎉 Ariza №${booking.colony_application_number} tasdiqlandi!
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
         day: "2-digit",

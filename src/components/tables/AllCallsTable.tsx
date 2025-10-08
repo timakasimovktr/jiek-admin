@@ -32,6 +32,7 @@
     start_datetime?: string;
     end_datetime?: string;
     rejection_reason?: string;
+    colony_application_number?: string | number;
   }
 
   export default function AllCallsTable() {
@@ -168,6 +169,7 @@
       try {
         await axios.post("/api/accept-booking", {
           bookingId: selectedOrder.id,
+          colony_application_number: selectedOrder.colony_application_number,
           assignedDate,
         });
         setModalType(null);
@@ -182,6 +184,7 @@
       try {
         await axios.post("/api/reject-booking", {
           bookingId: selectedOrder.id,
+          colony_application_number: selectedOrder.colony_application_number,
           reason: rejectionReason,
         });
         setModalType(null);
@@ -197,6 +200,7 @@
       try {
         await axios.post("/api/save-booking", {
           bookingId: selectedOrder.id,
+          colony_application_number: selectedOrder.colony_application_number,
           approvedDays,
         });
         setModalType(null);
@@ -215,7 +219,7 @@
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `Заявление №${order.id}`,
+                    text: `Заявление №${order.colony_application_number}`,
                     bold: true,
                     size: 24,
                     font: "Arial",
@@ -293,7 +297,7 @@
       });
 
       Packer.toBlob(doc).then((blob) => {
-        saveAs(blob, `booking_${order.id}.docx`);
+        saveAs(blob, `booking_${order.colony_application_number}.docx`);
       });
     };
 
@@ -550,7 +554,7 @@
                           }}
                           style={{ width: "100%", height: "100%" }}
                         >
-                          {order.id}
+                          {order.colony_application_number}
                         </div>
                       </TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">
@@ -659,7 +663,7 @@
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-                  Заявление #{selectedOrder.id}
+                  Заявление #{selectedOrder.colony_application_number}
                 </h2>
                 <div className="mb-4 space-y-2 text-gray-700 dark:text-gray-300">
                   <p><strong>Заключенный:</strong> {selectedOrder.prisoner_name}</p>

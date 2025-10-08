@@ -17,7 +17,7 @@ interface BookingRow extends RowDataPacket {
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId, reason } = await req.json();
+    const { bookingId, colony_application_number, reason } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
     
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     const message = `
-❌ Ariza rad etildi. Raqam: ${bookingId} 
+❌ Ariza rad etildi. Raqam: ${colony_application_number} 
 👤 Mas'ul xodim
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
 💬 Sabab: ${reason}

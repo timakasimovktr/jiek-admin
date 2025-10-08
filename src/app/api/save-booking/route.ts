@@ -18,7 +18,7 @@ interface BookingRow extends RowDataPacket {
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId, approvedDays } = await req.json();
+    const { bookingId, colony_application_number, approvedDays } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 // `;
 
     const messageBot = `
-📝 Sizning arizangiz №${bookingId} yangilandi. Tasdiqlangan kunlar: ${approvedDays}
+📝 Sizning arizangiz №${colony_application_number} yangilandi. Tasdiqlangan kunlar: ${approvedDays}
 `;
 
     // await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {

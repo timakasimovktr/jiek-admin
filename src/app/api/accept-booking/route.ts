@@ -21,7 +21,7 @@ interface Booking extends RowDataPacket {
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId, assignedDate } = await req.json();
+    const { bookingId, colony_application_number, assignedDate } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
 
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
     const relativeName = relatives[0]?.full_name || "Н/Д";
 
     const messageGroup = `
-    🎉 Ariza tasdiqlandi. Raqam: ${bookingId} 
+    🎉 Ariza tasdiqlandi. Raqam: ${colony_application_number} 
     👤 Arizachi: ${relativeName}
     📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
     ⌚ Kelish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     `;
 
     const messageBot = `
-    🎉 Ariza tasdiqlandi. Raqam: ${bookingId} 
+    🎉 Ariza tasdiqlandi. Raqam: ${colony_application_number} 
     👤 Arizachi: ${relativeName}
     📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
     ⌚ Kelish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
