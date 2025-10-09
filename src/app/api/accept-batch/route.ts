@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
 
     for (const booking of pendingRows) {
-      let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      let newVisitType: "short" | "long" | "extra" = booking.visit_type;
+      const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+      const newVisitType: "short" | "long" | "extra" = booking.visit_type;
       const timeZone = "Asia/Tashkent";
       const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10);
@@ -110,51 +110,14 @@ export async function POST(req: NextRequest) {
       for (let tries = 0; tries < 60; tries++) {
         let isValidDate = true;
 
-        // Check if any day in the booking duration is a sanitary day or the day before a sanitary day
+        // Check if any day in the booking duration is a sanitary day
         for (let d = 0; d < duration; d++) {
           const day = new Date(start);
           day.setDate(day.getDate() + d);
           const dayStr = day.toISOString().slice(0, 10);
-
-          // Check if the day is a sanitary day
           if (sanitaryDates.includes(dayStr)) {
             isValidDate = false;
-            if (booking.visit_type !== "short") {
-              duration = 1;
-              newVisitType = "short";
-              console.log(`Booking ${booking.id}: Compressed to 1 day due to sanitary day on ${dayStr}`);
-            }
             break;
-          }
-
-          // Check if the day is the day before a sanitary day
-          const nextDay = new Date(day);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const nextDayStr = nextDay.toISOString().slice(0, 10);
-          if (sanitaryDates.includes(nextDayStr)) {
-            isValidDate = false;
-            if (booking.visit_type !== "short") {
-              duration = 1;
-              newVisitType = "short";
-              console.log(`Booking ${booking.id}: Compressed to 1 day due to day before sanitary day ${nextDayStr}`);
-            }
-            break;
-          }
-        }
-
-        // Check the day after the booking
-        if (isValidDate && booking.visit_type !== "short") {
-          const endDay = new Date(start);
-          endDay.setDate(endDay.getDate() + duration - 1);
-          const nextDayAfterEnd = new Date(endDay);
-          nextDayAfterEnd.setDate(nextDayAfterEnd.getDate() + 1);
-          const nextDayStr = nextDayAfterEnd.toISOString().slice(0, 10);
-
-          if (sanitaryDates.includes(nextDayStr)) {
-            isValidDate = false;
-            duration = 1;
-            newVisitType = "short";
-            console.log(`Booking ${booking.id}: Compressed to 1 day due to sanitary day after booking on ${nextDayStr}`);
           }
         }
 
@@ -166,15 +129,11 @@ export async function POST(req: NextRequest) {
             const currentDay = new Date(lastSanitaryDay);
             currentDay.setDate(currentDay.getDate() + 1);
             let currentDayStr = currentDay.toISOString().slice(0, 10);
-
-            // Find the last consecutive sanitary day
             while (sanitaryDates.includes(currentDayStr)) {
               lastSanitaryDay = new Date(currentDay);
               currentDay.setDate(currentDay.getDate() + 1);
               currentDayStr = currentDay.toISOString().slice(0, 10);
             }
-
-            // Set start to the day after the last consecutive sanitary day
             start.setDate(lastSanitaryDay.getDate() + 1);
             console.log(`Booking ${booking.id}: Adjusted start to ${start.toISOString().slice(0, 10)} after last sanitary day ${lastSanitaryDay.toISOString().slice(0, 10)}`);
             // Ensure start date is not before minDate
@@ -183,53 +142,58 @@ export async function POST(req: NextRequest) {
               console.log(`Booking ${booking.id}: Start adjusted to minDate ${minDate.toISOString().slice(0, 10)}`);
             }
           } else {
-            // No sanitary day found, move to the next day
             start.setDate(start.getDate() + 1);
             console.log(`Booking ${booking.id}: Moved to next day ${start.toISOString().slice(0, 10)}`);
           }
+          continue;
         }
 
-        // Check room availability only if the date is valid
-        if (isValidDate) {
-          for (let roomId = 1; roomId <= rooms; roomId++) {
-            let canFit = true;
-            for (let d = 0; d < duration; d++) {
-              const day = new Date(start);
-              day.setDate(day.getDate() + d);
-              const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-              const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
-              const endDay = new Date(start);
-              endDay.setDate(endDay.getDate() + duration - 1);
+        // Check room availability
+        for (let roomId = 1; roomId <= rooms; roomId++) {
+          let canFit = true;
+          for (let d = 0; d < duration; d++) {
+            const day = new Date(start);
+            day.setDate(day.getDate() + d);
+            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
+            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+            const endDay = new Date(start);
+            endDay.setDate(endDay.getDate() + duration - 1);
 
-              const [occupiedRows] = await pool.query<RowDataPacket[]>(
-                `SELECT COUNT(*) as cnt FROM bookings 
-                WHERE status = 'approved' 
-                AND room_id = ? 
-                AND colony = ? 
-                AND (
-                  (start_datetime <= ? AND end_datetime >= ?) OR 
-                  (start_datetime <= ? AND end_datetime >= ?) OR 
-                  (start_datetime >= ? AND end_datetime <= ?)
-                )`,
-                [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, endDay]
-              );
+            const [occupiedRows] = await pool.query<RowDataPacket[]>(
+              `SELECT COUNT(*) as cnt FROM bookings 
+              WHERE status = 'approved' 
+              AND room_id = ? 
+              AND colony = ? 
+              AND (
+                (start_datetime <= ? AND end_datetime >= ?) OR 
+                (start_datetime <= ? AND end_datetime >= ?) OR 
+                (start_datetime >= ? AND end_datetime <= ?)
+              )`,
+              [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, endDay]
+            );
 
-              if (occupiedRows[0].cnt > 0) {
-                canFit = false;
-                console.log(`Booking ${booking.id}: Room ${roomId} occupied on ${day.toISOString().slice(0, 10)}`);
-                break;
-              }
-            }
-            if (canFit) {
-              found = true;
-              assignedRoomId = roomId;
-              console.log(
-                `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)} (duration: ${duration} day(s), type: ${newVisitType})`
-              );
+            if (occupiedRows[0].cnt > 0) {
+              canFit = false;
+              console.log(`Booking ${booking.id}: Room ${roomId} occupied on ${day.toISOString().slice(0, 10)}`);
               break;
             }
           }
+          if (canFit) {
+            found = true;
+            assignedRoomId = roomId;
+            console.log(
+              `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)} (duration: ${duration} day(s), type: ${newVisitType})`
+            );
+            break;
+          }
         }
+
+        if (found) break;
+        start.setDate(start.getDate() + 1);
+        if (start > maxDate) {
+          console.warn(`Booking ${booking.id} exceeded max date after ${tries} tries`);
+          break;
+        }   
 
         if (found) break;
         start.setDate(start.getDate() + 1);
