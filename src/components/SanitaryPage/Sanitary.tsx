@@ -71,7 +71,7 @@ const Sanitary: React.FC = () => {
   // 🔹 Функция для определения классов ячеек
   const dayCellClassNames = (arg: { date: Date }) => {
     const classes = [];
-    if (lastOrderDate && arg.date.getTime() <= lastOrderDate.getTime() + 72 * 60 * 60 * 1000) {
+    if (lastOrderDate && arg.date.getTime() <= lastOrderDate.getTime() + 48 * 60 * 60 * 1000) {
       classes.push("disabled-day"); // Класс для дней до lastOrderDate включительно
     }
     return classes;
