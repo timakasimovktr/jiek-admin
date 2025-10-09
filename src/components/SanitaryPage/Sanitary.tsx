@@ -168,22 +168,30 @@ const Sanitary: React.FC = () => {
       )}
       <div className="custom-calendar overflow-hidden">
         <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
-          locale={ruLocale}
-          headerToolbar={{
-            left: "prev,next",
-            center: "title",
-            right: "today",
-          }}
-          events={events}
-          height="300px"
-          dateClick={handleDateClick}
-          eventClick={handleEventClick}
-          eventContent={renderEventContent}
-          dayMaxEvents={Infinity}
-        />
+        ref={calendarRef}
+        plugins={[dayGridPlugin, interactionPlugin]}
+        initialView="dayGridMonth"
+        locale={ruLocale}
+        headerToolbar={{
+          left: "prev,next",
+          center: "title",
+          right: "today",
+        }}
+        events={events}
+        height="300px"
+        dateClick={handleDateClick}
+        eventClick={handleEventClick}
+        eventContent={renderEventContent}
+        dayMaxEvents={Infinity}
+        dayCellDidMount={(arg) => {
+          // Если дата <= последней заявки — затемняем ячейку
+          if (lastOrderDate && new Date(arg.date) <= lastOrderDate) {
+            arg.el.style.backgroundColor = "rgba(255, 0, 0, 0.1)";
+            arg.el.style.pointerEvents = "none"; // чтобы нельзя было кликнуть
+            arg.el.style.opacity = "0.6";
+          }
+        }}
+      />
       </div>
     </div>
   );
