@@ -27,9 +27,9 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-interface CountRow extends RowDataPacket {
-  cnt: number;
-}
+// interface CountRow extends RowDataPacket {
+//   cnt: number;
+// }
 
 export async function POST(req: NextRequest) {
   try {
