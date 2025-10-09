@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { addDays } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -20,7 +20,7 @@ interface Booking extends RowDataPacket {
   relatives: string;
   telegram_chat_id?: string;
   colony: number;
-  colony_application_number: string; 
+  colony_application_number: string;
 }
 
 interface SettingsRow extends RowDataPacket {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Received count from UI:", count); 
+    console.log("Received count from UI:", count);
 
     const [settingsRows] = await pool.query<SettingsRow[]>(
       `SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`
@@ -71,47 +71,46 @@ export async function POST(req: NextRequest) {
     }
 
     const rooms = Number(settingsRows[0]?.value) || 10;
-    console.log("Rooms count from DB:", rooms); 
-
+    console.log("Rooms count from DB:", rooms);
 
     if (rooms !== count) {
       console.warn(`Mismatch detected: UI count=${count}, DB rooms=${rooms}`);
     }
 
-    // Получение pending-заявок (ограничено count)
     const [pendingRows] = await pool.query<Booking[]>(
       `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
       [colony, count]
     );
 
-    console.log("Pending bookings found:", pendingRows.length); // Лог: сколько pending найдено
+    console.log("Pending bookings found:", pendingRows.length);
 
     if (pendingRows.length === 0) {
       console.log("No pending bookings to process");
       return NextResponse.json({ message: "Kutilayotgan arizalar yo'q" }, { status: 200 });
     }
 
-    let assignedCount = 0; // Счетчик успешно назначенных заявок
-    const assignedBookings: { bookingId: number; startDate: string; roomId: number }[] = [];
+    let assignedCount = 0;
+    const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
 
     for (const booking of pendingRows) {
-      const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      const timeZone = 'Asia/Tashkent';
+      let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+      let newVisitType: "short" | "long" | "extra" = booking.visit_type;
+      const timeZone = "Asia/Tashkent";
       const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10);
       const start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
 
-      // Попытка найти свободную комнату (до 60 дней вперед)
       for (let tries = 0; tries < 60; tries++) {
         let isSanitaryFree = true;
+        let adjustForSanitary = false;
+
+        // Проверка санитарных дней для всех дней брони
         for (let d = 0; d < duration; d++) {
           const day = new Date(start);
           day.setDate(day.getDate() + d);
           const dayStr = day.toISOString().slice(0, 10);
-          const nextDay = new Date(day);
-          nextDay.setDate(nextDay.getDate() + 1);
 
           const [sanitaryRows] = await pool.query<CountRow[]>(
             `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
@@ -120,12 +119,29 @@ export async function POST(req: NextRequest) {
 
           if (sanitaryRows[0].cnt > 0) {
             isSanitaryFree = false;
-            break;
+            if (booking.visit_type === "long" && duration === 2) {
+              // Для двухдневных свиданий: обрезаем до 1 дня и ставим за день до санитарного
+              duration = 1;
+              newVisitType = "short";
+              adjustForSanitary = true;
+              start.setDate(day.getDate() - 1);
+              break;
+            } else if (booking.visit_type === "extra") {
+              // Для трехдневных свиданий: переносим после санитарного дня
+              start.setDate(day.getDate() + 1);
+              duration = 3; // Восстанавливаем длительность
+              newVisitType = "extra";
+              break;
+            } else {
+              // Для однодневных: просто переносим на следующий день
+              start.setDate(start.getDate() + 1);
+              break;
+            }
           }
         }
 
-        // ADDED: Проверка дня после end_datetime (если следующий день санитарный, блокируем)
-        if (isSanitaryFree) {
+        // Проверка дня после окончания брони
+        if (isSanitaryFree && !adjustForSanitary) {
           const endDay = new Date(start);
           endDay.setDate(endDay.getDate() + duration - 1);
           const nextDayAfterEnd = new Date(endDay);
@@ -139,48 +155,56 @@ export async function POST(req: NextRequest) {
 
           if (sanitaryNextRows[0].cnt > 0) {
             isSanitaryFree = false;
-          }
-        }
-
-        if (!isSanitaryFree) {
-          start.setDate(start.getDate() + 1);
-          continue;
-        }
-
-        for (let roomId = 1; roomId <= rooms; roomId++) {
-          let canFit = true;
-          for (let d = 0; d < duration; d++) {
-            const day = new Date(start);
-            day.setDate(day.getDate() + d);
-            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
-
-            // Проверка пересечения дат
-            const [occupiedRows] = await pool.query<RowDataPacket[]>(
-              `SELECT COUNT(*) as cnt FROM bookings 
-              WHERE status = 'approved' 
-              AND room_id = ? 
-              AND colony = ? 
-              AND (
-                (start_datetime <= ? AND end_datetime >= ?) OR 
-                (start_datetime <= ? AND end_datetime >= ?) OR 
-                (start_datetime >= ? AND end_datetime <= ?)
-              )`,
-              [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
-            );
-
-            if (occupiedRows[0].cnt > 0) {
-              canFit = false;
-              break;
+            if (booking.visit_type === "long" && duration === 2) {
+              duration = 1;
+              newVisitType = "short";
+              adjustForSanitary = true;
+              start.setDate(nextDayAfterEnd.getDate() - 1);
+            } else if (booking.visit_type === "extra") {
+              start.setDate(nextDayAfterEnd.getDate() + 1);
+              duration = 3;
+              newVisitType = "extra";
+            } else {
+              start.setDate(start.getDate() + 1);
             }
           }
-          if (canFit) {
-            found = true;
-            assignedRoomId = roomId;
-            console.log(
-              `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)}`
-            ); // Лог: назначение комнаты
-            break;
+        }
+
+        if (isSanitaryFree || adjustForSanitary) {
+          for (let roomId = 1; roomId <= rooms; roomId++) {
+            let canFit = true;
+            for (let d = 0; d < duration; d++) {
+              const day = new Date(start);
+              day.setDate(day.getDate() + d);
+              const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
+              const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+
+              const [occupiedRows] = await pool.query<RowDataPacket[]>(
+                `SELECT COUNT(*) as cnt FROM bookings 
+                WHERE status = 'approved' 
+                AND room_id = ? 
+                AND colony = ? 
+                AND (
+                  (start_datetime <= ? AND end_datetime >= ?) OR 
+                  (start_datetime <= ? AND end_datetime >= ?) OR 
+                  (start_datetime >= ? AND end_datetime <= ?)
+                )`,
+                [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
+              );
+
+              if (occupiedRows[0].cnt > 0) {
+                canFit = false;
+                break;
+              }
+            }
+            if (canFit) {
+              found = true;
+              assignedRoomId = roomId;
+              console.log(
+                `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)}`
+              );
+              break;
+            }
           }
         }
         if (found) break;
@@ -199,14 +223,13 @@ export async function POST(req: NextRequest) {
       const endDateStr = endStr.toISOString().slice(0, 10) + " 23:59:59";
 
       await pool.query(
-        `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ? WHERE id = ? AND colony = ?`,
-        [startStr, endDateStr, assignedRoomId, booking.id, colony]
+        `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
+        [startStr, endDateStr, assignedRoomId, newVisitType, booking.id, colony]
       );
 
       assignedCount++;
-      assignedBookings.push({ bookingId: booking.id, startDate: startStr, roomId: assignedRoomId });
+      assignedBookings.push({ bookingId: booking.id, startDate: startStr, roomId: assignedRoomId, newVisitType });
 
-      // Парсинг relatives
       let relatives: Relative[] = [];
       try {
         relatives = JSON.parse(booking.relatives);
@@ -215,7 +238,6 @@ export async function POST(req: NextRequest) {
       }
       const relativeName = relatives[0]?.full_name || "N/A";
 
-      // Сообщения для Telegram
       const messageGroup = `
 🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
 👤 Arizachi: ${relativeName}
@@ -251,13 +273,12 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⏲️ Tur: ${booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik"}
+⏲️ Tur: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
 `;
 
-      // Отправка в группу администраторов
       try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           chat_id: adminChatId,
@@ -268,7 +289,6 @@ export async function POST(req: NextRequest) {
         console.error(`Failed to send group message for booking ${booking.id}:`, err);
       }
 
-      // Отправка пользователю
       if (booking.telegram_chat_id) {
         try {
           await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -284,7 +304,7 @@ export async function POST(req: NextRequest) {
 
     console.log(
       `Batch processing completed: ${assignedCount} bookings assigned out of ${pendingRows.length}, using max ${rooms} rooms`
-    ); // Финальный лог
+    );
 
     return NextResponse.json({ success: true, assignedBookings, assignedCount });
   } catch (err) {
