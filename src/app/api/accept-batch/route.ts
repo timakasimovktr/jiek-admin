@@ -27,10 +27,6 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-// interface CountRow extends RowDataPacket {
-//   cnt: number;
-// }
-
 export async function POST(req: NextRequest) {
   try {
     const { count } = await req.json();
@@ -102,7 +98,7 @@ export async function POST(req: NextRequest) {
       let found = false;
       let assignedRoomId: number | null = null;
 
-      // Получаем все санитарные дни в пределах 60 дней от minDate
+      // Fetch all sanitary days within 60 days from minDate
       const maxDate = addDays(minDate, 60);
       const [sanitaryDays] = await pool.query<RowDataPacket[]>(
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
@@ -114,7 +110,7 @@ export async function POST(req: NextRequest) {
         let isSanitaryFree = true;
         let adjustForSanitary = false;
 
-        // Проверка санитарных дней для всех дней брони
+        // Check sanitary days for all booking days
         for (let d = 0; d < duration; d++) {
           const day = new Date(start);
           day.setDate(day.getDate() + d);
@@ -122,55 +118,33 @@ export async function POST(req: NextRequest) {
 
           if (sanitaryDates.includes(dayStr)) {
             isSanitaryFree = false;
-            if (booking.visit_type === "long" && duration === 2) {
-              // Для двухдневных свиданий: обрезаем до 1 дня и ставим за день до ближайшего санитарного дня
+            if (booking.visit_type !== "short") {
+              // Compress 2-day or 3-day bookings to 1 day
               duration = 1;
               newVisitType = "short";
               adjustForSanitary = true;
-              // Находим ближайший санитарный день
+              // Set start date to the day before the sanitary day, if possible
               const firstSanitaryDay = sanitaryDates.find(date => new Date(date) >= start);
               if (firstSanitaryDay) {
                 const sanitaryDate = new Date(firstSanitaryDay);
                 start.setDate(sanitaryDate.getDate() - 1);
-                // Убедимся, что новая дата не раньше minDate
+                // Ensure start date is not before minDate
                 if (start < minDate) {
                   start.setTime(minDate.getTime());
                 }
               }
-              break;
-            } else if (booking.visit_type === "extra") {
-              // Для трехдневных: обрезаем до 1 или 2 дней в зависимости от позиции санитарного дня
-              const firstSanitaryDay = sanitaryDates.find(date => new Date(date) >= start);
-              if (firstSanitaryDay) {
-                const sanitaryDate = new Date(firstSanitaryDay);
-                const daysUntilSanitary = Math.floor((sanitaryDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                if (daysUntilSanitary >= 2) {
-                  duration = 2;
-                  newVisitType = "long";
-                  start.setDate(sanitaryDate.getDate() - 2);
-                } else if (daysUntilSanitary === 1) {
-                  duration = 1;
-                  newVisitType = "short";
-                  start.setDate(sanitaryDate.getDate() - 1);
-                }
-                // Убедимся, что новая дата не раньше minDate
-                if (start < minDate) {
-                  start.setTime(minDate.getTime());
-                }
-              }
-              adjustForSanitary = true;
-              break;
             } else {
-              start.setDate(start.getDate() - 1);
+              // For 1-day bookings, move to the next day
+              start.setDate(start.getDate() + 1);
               if (start < minDate) {
                 start.setTime(minDate.getTime());
-              }            
-              break;
+              }
             }
+            break;
           }
         }
 
-        // Проверка дня после окончания брони
+        // Check the day after the booking
         if (isSanitaryFree && !adjustForSanitary) {
           const endDay = new Date(start);
           endDay.setDate(endDay.getDate() + duration - 1);
@@ -178,24 +152,17 @@ export async function POST(req: NextRequest) {
           nextDayAfterEnd.setDate(nextDayAfterEnd.getDate() + 1);
           const nextDayStr = nextDayAfterEnd.toISOString().slice(0, 10);
 
-          if (sanitaryDates.includes(nextDayStr)) {
+          if (sanitaryDates.includes(nextDayStr) && booking.visit_type !== "short") {
             isSanitaryFree = false;
-            if (booking.visit_type === "long" && duration === 2) {
-              duration = 1;
-              newVisitType = "short";
-              adjustForSanitary = true;
-              // Устанавливаем дату за день до санитарного дня
-              start.setDate(nextDayAfterEnd.getDate() - 1);
-              // Убедимся, что новая дата не раньше minDate
-              if (start < minDate) {
-                start.setTime(minDate.getTime());
-              }
-            } else if (booking.visit_type === "extra") {
-              start.setDate(nextDayAfterEnd.getDate() + 1);
-              duration = 3;
-              newVisitType = "extra";
-            } else {
-              start.setDate(start.getDate() + 1);
+            // Compress 2-day or 3-day bookings to 1 day
+            duration = 1;
+            newVisitType = "short";
+            adjustForSanitary = true;
+            // Set start date to the day before the sanitary day
+            start.setDate(nextDayAfterEnd.getDate() - 1);
+            // Ensure start date is not before minDate
+            if (start < minDate) {
+              start.setTime(minDate.getTime());
             }
           }
         }
@@ -239,6 +206,11 @@ export async function POST(req: NextRequest) {
         }
         if (found) break;
         start.setDate(start.getDate() + 1);
+        // Prevent infinite loop by ensuring start date doesn't exceed maxDate
+        if (start > maxDate) {
+          console.warn(`Booking ${booking.id} exceeded max date after ${tries} tries`);
+          break;
+        }
       }
 
       if (!found || assignedRoomId === null) {
@@ -246,7 +218,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Обновление брони
+      // Update booking
       const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
       const endStr = new Date(start);
       endStr.setDate(endStr.getDate() + duration - 1);
@@ -268,8 +240,6 @@ export async function POST(req: NextRequest) {
       }
       const relativeName = relatives[0]?.full_name || "N/A";
 
-      // if visit type was changed, reflect that in the message
-      
       const messageGroup = `
 🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
 👤 Arizachi: ${relativeName}
@@ -305,7 +275,7 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan o'zgartirilgan): ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
+⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
@@ -324,9 +294,9 @@ export async function POST(req: NextRequest) {
       if (booking.telegram_chat_id) {
         try {
           await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          chat_id: booking.telegram_chat_id,
-          text: messageBot,
-        });
+            chat_id: booking.telegram_chat_id,
+            text: messageBot,
+          });
           console.log(`Sent user message for booking ${booking.id}`);
         } catch (err) {
           console.error(`Failed to send user message for booking ${booking.id}:`, err);
