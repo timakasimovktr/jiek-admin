@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays } from "date-fns";
+import { addDays, isSameDay, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { cookies } from "next/headers";
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const colony = cookieStore.get("colony")?.value;
 
     if (!colony) {
-      return NextResponse.json({ error: "colony cookie topilmadi" }, { status: 400 });
+      return NextResponse.json({ error: "Colony cookie not found" }, { status: 400 });
     }
 
     const [adminRows] = await pool.query<RowDataPacket[]>(
@@ -43,15 +43,15 @@ export async function POST(req: NextRequest) {
     );
 
     if (!adminRows.length) {
-      return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
+      return NextResponse.json({ error: "Colony not found in groups table" }, { status: 400 });
     }
 
-    const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
+    const adminChatId = adminRows[0].group_id;
 
     if (typeof count !== "number" || count <= 0 || count > 50) {
       console.error("Invalid count:", count);
       return NextResponse.json(
-        { error: "count talab qilinadi va 1 dan 50 gacha bo'lishi kerak" },
+        { error: "Count must be between 1 and 50" },
         { status: 400 }
       );
     }
@@ -63,10 +63,10 @@ export async function POST(req: NextRequest) {
     );
 
     if (!settingsRows.length) {
-      return NextResponse.json({ error: `rooms_count${colony} sozlama topilmadi` }, { status: 400 });
+      return NextResponse.json({ error: `rooms_count${colony} setting not found` }, { status: 400 });
     }
 
-    const rooms = Number(settingsRows[0]?.value) || 10;
+    const rooms = Number(settingsRows[0].value) || 10;
     console.log("Rooms count from DB:", rooms);
 
     if (rooms !== count) {
@@ -74,7 +74,10 @@ export async function POST(req: NextRequest) {
     }
 
     const [pendingRows] = await pool.query<Booking[]>(
-      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number 
+       FROM bookings 
+       WHERE status = 'pending' AND colony = ? 
+       ORDER BY created_at ASC LIMIT ?`,
       [colony, count]
     );
 
@@ -82,68 +85,69 @@ export async function POST(req: NextRequest) {
 
     if (pendingRows.length === 0) {
       console.log("No pending bookings to process");
-      return NextResponse.json({ message: "Kutilayotgan arizalar yo'q" }, { status: 200 });
+      return NextResponse.json({ message: "No pending bookings" }, { status: 200 });
     }
 
     let assignedCount = 0;
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
 
     for (const booking of pendingRows) {
-      const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      const newVisitType: "short" | "long" | "extra" = booking.visit_type;
+      let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+      let newVisitType: "short" | "long" | "extra" = booking.visit_type;
       const timeZone = "Asia/Tashkent";
       const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10);
-      const start = new Date(minDate);
+      const maxDate = addDays(minDate, 60);
+      let start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
 
-      // Fetch all sanitary days within 60 days from minDate
-      const maxDate = addDays(minDate, 60);
+      // Fetch sanitary days
       const [sanitaryDays] = await pool.query<RowDataPacket[]>(
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
         [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
-      const sanitaryDates = sanitaryDays.map(row => new Date(row.date).toISOString().slice(0, 10));
+      const sanitaryDates = sanitaryDays.map(row => parseISO(row.date));
+
       console.log(`Booking ${booking.id} (type: ${booking.visit_type}): Sanitary days`, sanitaryDates);
 
-      for (let tries = 0; tries < 60; tries++) {
+      for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
         let isValidDate = true;
+        let adjustedDuration = duration;
 
-        // Check if any day in the booking duration is a sanitary day
-        for (let d = 0; d < duration; d++) {
-          const day = new Date(start);
-          day.setDate(day.getDate() + d);
-          const dayStr = day.toISOString().slice(0, 10);
-          if (sanitaryDates.includes(dayStr)) {
+        // Check if the booking period or the day before conflicts with sanitary days
+        for (let d = -1; d < duration; d++) { // Include day before
+          const day = addDays(start, d);
+          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
             isValidDate = false;
             break;
           }
         }
 
-        // If the date is invalid, move to the day after the last consecutive sanitary day
+        // If invalid, try reducing duration to 1 for long/extra visits
+        if (!isValidDate && duration > 1) {
+          adjustedDuration = 1;
+          newVisitType = "short";
+          isValidDate = true;
+          // Recheck with adjusted duration
+          for (let d = -1; d < adjustedDuration; d++) {
+            const day = addDays(start, d);
+            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
+              isValidDate = false;
+              break;
+            }
+          }
+        }
+
+        // If still invalid, skip to after the sanitary period
         if (!isValidDate) {
-          const firstSanitaryDay = sanitaryDates.find(date => new Date(date) >= start);
-          if (firstSanitaryDay) {
-            let lastSanitaryDay = new Date(firstSanitaryDay);
-            const currentDay = new Date(lastSanitaryDay);
-            currentDay.setDate(currentDay.getDate() + 1);
-            let currentDayStr = currentDay.toISOString().slice(0, 10);
-            while (sanitaryDates.includes(currentDayStr)) {
-              lastSanitaryDay = new Date(currentDay);
-              currentDay.setDate(currentDay.getDate() + 1);
-              currentDayStr = currentDay.toISOString().slice(0, 10);
-            }
-            start.setDate(lastSanitaryDay.getDate() + 1);
-            console.log(`Booking ${booking.id}: Adjusted start to ${start.toISOString().slice(0, 10)} after last sanitary day ${lastSanitaryDay.toISOString().slice(0, 10)}`);
-            // Ensure start date is not before minDate
-            if (start < minDate) {
-              start.setTime(minDate.getTime());
-              console.log(`Booking ${booking.id}: Start adjusted to minDate ${minDate.toISOString().slice(0, 10)}`);
-            }
+          const conflictingSanitary = sanitaryDates.find(sanitary => sanitary >= start);
+          if (conflictingSanitary) {
+            const sanitaryEnd = addDays(conflictingSanitary, 1);
+            start = sanitaryEnd > minDate ? sanitaryEnd : minDate;
+            console.log(`Booking ${booking.id}: Adjusted start to ${start.toISOString().slice(0, 10)} after sanitary day`);
           } else {
-            start.setDate(start.getDate() + 1);
-            console.log(`Booking ${booking.id}: Moved to next day ${start.toISOString().slice(0, 10)}`);
+            start = addDays(start, 1);
           }
           continue;
         }
@@ -151,24 +155,22 @@ export async function POST(req: NextRequest) {
         // Check room availability
         for (let roomId = 1; roomId <= rooms; roomId++) {
           let canFit = true;
-          for (let d = 0; d < duration; d++) {
-            const day = new Date(start);
-            day.setDate(day.getDate() + d);
+          for (let d = 0; d < adjustedDuration; d++) {
+            const day = addDays(start, d);
             const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
             const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
-            const endDay = new Date(start);
-            endDay.setDate(endDay.getDate() + duration - 1);
+            const endDay = addDays(start, adjustedDuration - 1);
 
             const [occupiedRows] = await pool.query<RowDataPacket[]>(
               `SELECT COUNT(*) as cnt FROM bookings 
-              WHERE status = 'approved' 
-              AND room_id = ? 
-              AND colony = ? 
-              AND (
-                (start_datetime <= ? AND end_datetime >= ?) OR 
-                (start_datetime <= ? AND end_datetime >= ?) OR 
-                (start_datetime >= ? AND end_datetime <= ?)
-              )`,
+               WHERE status = 'approved' 
+               AND room_id = ? 
+               AND colony = ? 
+               AND (
+                 (start_datetime <= ? AND end_datetime >= ?) OR 
+                 (start_datetime <= ? AND end_datetime >= ?) OR 
+                 (start_datetime >= ? AND end_datetime <= ?)
+               )`,
               [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, endDay]
             );
 
@@ -181,6 +183,7 @@ export async function POST(req: NextRequest) {
           if (canFit) {
             found = true;
             assignedRoomId = roomId;
+            duration = adjustedDuration; // Update duration if changed
             console.log(
               `Assigned room ${roomId} for booking ${booking.id} on ${start.toISOString().slice(0, 10)} (duration: ${duration} day(s), type: ${newVisitType})`
             );
@@ -188,19 +191,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (found) break;
-        start.setDate(start.getDate() + 1);
-        if (start > maxDate) {
-          console.warn(`Booking ${booking.id} exceeded max date after ${tries} tries`);
-          break;
-        }   
-
-        if (found) break;
-        start.setDate(start.getDate() + 1);
-        // Prevent infinite loop by ensuring start date doesn't exceed maxDate
-        if (start > maxDate) {
-          console.warn(`Booking ${booking.id} exceeded max date after ${tries} tries`);
-          break;
+        if (!found) {
+          start = addDays(start, 1);
         }
       }
 
@@ -211,13 +203,11 @@ export async function POST(req: NextRequest) {
 
       // Update booking
       const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
-      const endStr = new Date(start);
-      endStr.setDate(endStr.getDate() + duration - 1);
-      const endDateStr = endStr.toISOString().slice(0, 10) + " 23:59:59";
+      const endStr = addDays(start, duration - 1).toISOString().slice(0, 10) + " 23:59:59";
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
-        [startStr, endDateStr, assignedRoomId, newVisitType, booking.id, colony]
+        [startStr, endStr, assignedRoomId, newVisitType, booking.id, colony]
       );
 
       assignedCount++;
@@ -232,44 +222,44 @@ export async function POST(req: NextRequest) {
       const relativeName = relatives[0]?.full_name || "N/A";
 
       const messageGroup = `
-🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+🎉 Booking approved. Number: ${booking.colony_application_number}
+👤 Applicant: ${relativeName}
+📅 Submitted: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+⌚ Visit date: ${start.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-🏛️ Koloniya: ${booking.colony}  
-🚪 Xona: ${assignedRoomId}
-🟢 Holat: Tasdiqlangan
+🏛️ Colony: ${booking.colony}  
+🚪 Room: ${assignedRoomId}
+🟢 Status: Approved
 `;
 
       const messageBot = `
-🎉 Ariza №${booking.colony_application_number} tasdiqlandi!
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+🎉 Booking №${booking.colony_application_number} approved!
+👤 Applicant: ${relativeName}
+📅 Submitted: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+⌚ Visit date: ${start.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
-🏛️ Koloniya: ${booking.colony}
-🚪 Xona: ${assignedRoomId}
-🟢 Holat: Tasdiqlangan
+⏲️ Type${newVisitType !== booking.visit_type ? ` (changed to 1-day due to sanitary day)` : `: ${newVisitType === "long" ? "2-day" : newVisitType === "short" ? "1-day" : "3-day"}`}
+🏛️ Colony: ${booking.colony}
+🚪 Room: ${assignedRoomId}
+🟢 Status: Approved
 `;
 
       try {
@@ -301,7 +291,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, assignedBookings, assignedCount });
   } catch (err) {
-    console.error("DB xatosi:", err);
-    return NextResponse.json({ error: "DB xatosi" }, { status: 500 });
+    console.error("Database error:", err);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }
