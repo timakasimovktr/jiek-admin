@@ -1,15 +1,32 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
+import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
 import ruLocale from "@fullcalendar/core/locales/ru";
-import {
-  EventInput,
-  EventContentArg,
-  EventClickArg,
-} from "@fullcalendar/core";
-import { DateClickArg } from "@fullcalendar/interaction";
+import { EventInput, EventContentArg, EventClickArg } from "@fullcalendar/core";
+import axios from "axios";
+
+interface Relative {
+  full_name: string;
+  passport: string;
+}
+
+interface Order {
+  id: number;
+  created_at: string;
+  prisoner_name: string;
+  relatives: Relative[];
+  visit_type: "short" | "long" | "extra";
+  status: "approved" | "pending" | "rejected" | "canceled";
+  user_id: number;
+  colony?: number;
+  room_id?: number;
+  start_datetime?: string;
+  end_datetime?: string;
+  rejection_reason?: string;
+  colony_application_number?: string | number;
+}
 
 interface CalendarEvent extends EventInput {
   extendedProps: {
@@ -18,29 +35,57 @@ interface CalendarEvent extends EventInput {
 }
 
 const Sanitary: React.FC = () => {
+  const [tableData, setTableData] = useState<Order[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const calendarRef = useRef<FullCalendar>(null);
 
+  const fetchData = async () => {
+    try {
+      const res = await axios.get("/api/bookings");
+      const normalizedData = res.data.map((order: Order) => ({
+        ...order,
+        relatives: JSON.parse(order.relatives as unknown as string),
+      }));
+      setTableData(normalizedData);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 🔹 Вычисляем последнюю дату заявки
+  const lastOrderDate = useMemo(() => {
+    if (!tableData.length) return null;
+
+    const allDates = tableData
+      .map((o) => o.start_datetime || o.created_at)
+      .filter(Boolean)
+      .map((d) => new Date(d));
+
+    return new Date(Math.max(...allDates.map((d) => d.getTime())));
+  }, [tableData]);
+
   const handleDateClick = async (clickInfo: DateClickArg) => {
     const dateStr = clickInfo.dateStr;
-    console.log("Clicked date:", dateStr); // Отладка: дата, на которую кликнули
+    const clickedDate = new Date(dateStr);
 
-    // Валидация формата даты
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(dateStr)) {
-      setError("Неверный формат даты");
+    // 🔹 Проверка — нельзя ставить крестики до последней заявки включительно
+    if (lastOrderDate && clickedDate <= lastOrderDate) {
+      setError("Нельзя отмечать санитарные дни до последней заявки включительно");
       return;
     }
 
-    // Toggle logic
+    setError(null);
     const existingEventIndex = events.findIndex((event) => event.start === dateStr);
 
     if (existingEventIndex !== -1) {
       // Remove
       const updatedEvents = events.filter((event) => event.start !== dateStr);
       setEvents(updatedEvents);
-      setError(null);
 
       try {
         const response = await fetch("/api/change-sanitary", {
@@ -48,9 +93,7 @@ const Sanitary: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: dateStr, action: "remove" }),
         });
-        if (!response.ok) {
-          throw new Error(`Failed to remove sanitary mark: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`Failed to remove sanitary mark`);
       } catch (error) {
         console.error("Error removing sanitary mark:", error);
         setEvents(events); // Revert
@@ -64,7 +107,6 @@ const Sanitary: React.FC = () => {
       };
       const updatedEvents = [...events, newEvent];
       setEvents(updatedEvents);
-      setError(null);
 
       try {
         const response = await fetch("/api/change-sanitary", {
@@ -72,9 +114,7 @@ const Sanitary: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: dateStr, action: "add" }),
         });
-        if (!response.ok) {
-          throw new Error(`Failed to add sanitary mark: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`Failed to add sanitary mark`);
       } catch (error) {
         console.error("Error adding sanitary mark:", error);
         setEvents(events); // Revert
@@ -84,7 +124,6 @@ const Sanitary: React.FC = () => {
 
   const handleEventClick = async (clickInfo: EventClickArg) => {
     const dateStr = clickInfo.event.startStr;
-    console.log("Clicked event date:", dateStr); // Отладка
     const updatedEvents = events.filter((event) => event.start !== dateStr);
     setEvents(updatedEvents);
     setError(null);
@@ -95,9 +134,7 @@ const Sanitary: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: dateStr, action: "remove" }),
       });
-      if (!response.ok) {
-        throw new Error(`Failed to remove sanitary mark: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Failed to remove sanitary mark`);
     } catch (error) {
       console.error("Error removing sanitary mark:", error);
       setEvents(events); // Revert
@@ -107,28 +144,19 @@ const Sanitary: React.FC = () => {
   useEffect(() => {
     fetch("/api/get-sanitary")
       .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch sanitary days: ${res.statusText}`);
-        }
+        if (!res.ok) throw new Error(`Failed to fetch sanitary days`);
         return res.json();
       })
       .then((data: { date: string }[]) => {
-        console.log("Received sanitary days:", data); // Отладка: что пришло с API
         setEvents(
-          data.map((d) => {
-            console.log("Processing date:", d.date); // Отладка каждой даты
-            return {
-              title: "✕",
-              start: d.date,
-              extendedProps: { calendar: "danger" },
-            };
-          })
+          data.map((d) => ({
+            title: "✕",
+            start: d.date,
+            extendedProps: { calendar: "danger" },
+          }))
         );
-        setError(null);
       })
-      .catch((error) => {
-        console.error("Error loading sanitary marks:", error);
-      });
+      .catch((error) => console.error("Error loading sanitary marks:", error));
   }, []);
 
   return (
@@ -163,9 +191,7 @@ const Sanitary: React.FC = () => {
 
 const renderEventContent = (eventInfo: EventContentArg) => {
   return (
-    <div
-      className="padding-[20px] max-h-[60px] text-white flex fc-event-main bg-red-700 p-0.5 rounded-sm font-bold text-xs items-center justify-center w-full h-full"
-    >
+    <div className="max-h-[60px] text-white flex fc-event-main bg-red-700 p-0.5 rounded-sm font-bold text-xs items-center justify-center w-full h-full">
       <div className="fc-event-title">{eventInfo.event.title}</div>
     </div>
   );
