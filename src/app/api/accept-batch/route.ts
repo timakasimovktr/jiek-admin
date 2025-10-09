@@ -123,12 +123,10 @@ export async function POST(req: NextRequest) {
               duration = 1;
               newVisitType = "short";
               adjustForSanitary = true;
-              // Находим ближайший санитарный день
               const firstSanitaryDay = sanitaryDates.find(date => new Date(date) >= start);
               if (firstSanitaryDay) {
                 const sanitaryDate = new Date(firstSanitaryDay);
                 start.setDate(sanitaryDate.getDate() - 1);
-                // Убедимся, что новая дата не раньше minDate
                 if (start < minDate) {
                   start.setTime(minDate.getTime());
                 }
@@ -139,9 +137,8 @@ export async function POST(req: NextRequest) {
               const relevantSanitaryDays = sanitaryDates
                 .filter(date => new Date(date) >= start)
                 .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-              let lastSanitaryDay = relevantSanitaryDays[0];
-              if (lastSanitaryDay) {
-                // Находим последний день в последовательности санитарных дней
+              if (relevantSanitaryDays.length > 0) {
+                let lastSanitaryDay = relevantSanitaryDays[0];
                 let currentDate = new Date(lastSanitaryDay);
                 let i = 0;
                 while (i < relevantSanitaryDays.length - 1) {
@@ -155,9 +152,22 @@ export async function POST(req: NextRequest) {
                   }
                 }
                 start.setDate(new Date(lastSanitaryDay).getDate() + 1);
+                // Проверяем, что все три дня после новой даты свободны
+                const newEndDay = new Date(start);
+                newEndDay.setDate(newEndDay.getDate() + 2); // Проверяем 3 дня
+                for (let d = 0; d < 3; d++) {
+                  const checkDay = new Date(start);
+                  checkDay.setDate(checkDay.getDate() + d);
+                  if (sanitaryDates.includes(checkDay.toISOString().slice(0, 10))) {
+                    isSanitaryFree = false;
+                    start.setDate(checkDay.getDate() + 1); // Переносим дальше
+                    break;
+                  }
+                }
               }
               duration = 3;
               newVisitType = "extra";
+              adjustForSanitary = true;
               break;
             } else {
               // Для однодневных: переносим на следующий день
@@ -181,20 +191,17 @@ export async function POST(req: NextRequest) {
               duration = 1;
               newVisitType = "short";
               adjustForSanitary = true;
-              // Устанавливаем дату за день до санитарного дня
               start.setDate(nextDayAfterEnd.getDate() - 1);
-              // Убедимся, что новая дата не раньше minDate
               if (start < minDate) {
                 start.setTime(minDate.getTime());
               }
             } else if (booking.visit_type === "extra") {
-              // Для трехдневных свиданий: переносим после последнего санитарного дня в последовательности
+              // Для трехдневных свиданий: переносим после последнего санитарного дня
               const relevantSanitaryDays = sanitaryDates
                 .filter(date => new Date(date) >= nextDayAfterEnd)
                 .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-              let lastSanitaryDay = relevantSanitaryDays[0];
-              if (lastSanitaryDay) {
-                // Находим последний день в последовательности санитарных дней
+              if (relevantSanitaryDays.length > 0) {
+                let lastSanitaryDay = relevantSanitaryDays[0];
                 let currentDate = new Date(lastSanitaryDay);
                 let i = 0;
                 while (i < relevantSanitaryDays.length - 1) {
@@ -208,11 +215,24 @@ export async function POST(req: NextRequest) {
                   }
                 }
                 start.setDate(new Date(lastSanitaryDay).getDate() + 1);
+                // Проверяем, что все три дня после новой даты свободны
+                const newEndDay = new Date(start);
+                newEndDay.setDate(newEndDay.getDate() + 2);
+                for (let d = 0; d < 3; d++) {
+                  const checkDay = new Date(start);
+                  checkDay.setDate(checkDay.getDate() + d);
+                  if (sanitaryDates.includes(checkDay.toISOString().slice(0, 10))) {
+                    isSanitaryFree = false;
+                    start.setDate(checkDay.getDate() + 1);
+                    break;
+                  }
+                }
               } else {
                 start.setDate(nextDayAfterEnd.getDate() + 1);
               }
               duration = 3;
               newVisitType = "extra";
+              adjustForSanitary = true;
             } else {
               start.setDate(start.getDate() + 1);
             }
