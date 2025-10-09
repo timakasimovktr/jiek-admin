@@ -107,9 +107,29 @@ export async function POST(req: NextRequest) {
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
         [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
-      const sanitaryDates = sanitaryDays.map(row => parseISO(row.date));
 
-      console.log(`Booking ${booking.id} (type: ${booking.visit_type}): Sanitary days`, sanitaryDates);
+      // Validate and parse sanitary days
+      const sanitaryDates = sanitaryDays
+        .map(row => {
+          if (typeof row.date !== 'string' || !row.date) {
+            console.warn(`Invalid date in sanitary_days for colony ${colony}:`, row.date);
+            return null;
+          }
+          try {
+            const parsedDate = parseISO(row.date);
+            if (isNaN(parsedDate.getTime())) {
+              console.warn(`Invalid date format in sanitary_days for colony ${colony}: ${row.date}`);
+              return null;
+            }
+            return parsedDate;
+          } catch (e) {
+            console.error(`Failed to parse date ${row.date} for booking ${booking.id}:`, e);
+            return null;
+          }
+        })
+        .filter((date): date is Date => date !== null);
+
+      console.log(`Booking ${booking.id} (type: ${booking.visit_type}): Sanitary days`, sanitaryDates.map(d => d.toISOString().slice(0, 10)));
 
       for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
         let isValidDate = true;
