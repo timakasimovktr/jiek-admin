@@ -255,6 +255,8 @@ export async function POST(req: NextRequest) {
       }
       const relativeName = relatives[0]?.full_name || "N/A";
 
+      // if visit type was changed, reflect that in the message
+      
       const messageGroup = `
 🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
 👤 Arizachi: ${relativeName}
@@ -290,7 +292,7 @@ export async function POST(req: NextRequest) {
         year: "numeric",
         timeZone: "Asia/Tashkent",
       })}
-⏲️ Tur: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}
+⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan o'zgartirilgan): ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
