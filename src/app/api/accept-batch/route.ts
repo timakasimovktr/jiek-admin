@@ -139,19 +139,32 @@ export async function POST(req: NextRequest) {
               }
               break;
             } else if (booking.visit_type === "extra") {
-              // Для трехдневных свиданий: переносим после последнего санитарного дня
-              const lastSanitaryDay = sanitaryDates
-                .filter(date => new Date(date) >= start)
-                .reduce((a, b) => (new Date(a) > new Date(b) ? a : b), sanitaryDates[0]);
-              if (lastSanitaryDay) {
-                start.setDate(new Date(lastSanitaryDay).getDate() + 1);
+              // Для трехдневных: обрезаем до 1 или 2 дней в зависимости от позиции санитарного дня
+              const firstSanitaryDay = sanitaryDates.find(date => new Date(date) >= start);
+              if (firstSanitaryDay) {
+                const sanitaryDate = new Date(firstSanitaryDay);
+                const daysUntilSanitary = Math.floor((sanitaryDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysUntilSanitary >= 2) {
+                  duration = 2;
+                  newVisitType = "long";
+                  start.setDate(sanitaryDate.getDate() - 2);
+                } else if (daysUntilSanitary === 1) {
+                  duration = 1;
+                  newVisitType = "short";
+                  start.setDate(sanitaryDate.getDate() - 1);
+                }
+                // Убедимся, что новая дата не раньше minDate
+                if (start < minDate) {
+                  start.setTime(minDate.getTime());
+                }
               }
-              duration = 3;
-              newVisitType = "extra";
+              adjustForSanitary = true;
               break;
             } else {
-              // Для однодневных: переносим на следующий день
-              start.setDate(start.getDate() + 1);
+              start.setDate(start.getDate() - 1);
+              if (start < minDate) {
+                start.setTime(minDate.getTime());
+              }            
               break;
             }
           }
