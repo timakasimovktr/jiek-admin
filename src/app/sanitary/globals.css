@@ -1,5 +1,5 @@
 /* Стили для недоступных дней */
 .fc .fc-daygrid-day.disabled-day {
-  background-color: #00041b8c; /* Серый фон для недоступных дней */
+  background-color: #00bc248c; /* Серый фон для недоступных дней */
   cursor: not-allowed; /* Курсор, указывающий на запрет */
 }
