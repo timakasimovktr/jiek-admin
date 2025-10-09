@@ -37,7 +37,6 @@ interface CalendarEvent extends EventInput {
 const Sanitary: React.FC = () => {
   const [tableData, setTableData] = useState<Order[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const calendarRef = useRef<FullCalendar>(null);
 
   const fetchData = async () => {
@@ -69,17 +68,25 @@ const Sanitary: React.FC = () => {
     return new Date(Math.max(...allDates.map((d) => d.getTime())));
   }, [tableData]);
 
+  // 🔹 Функция для определения классов ячеек
+  const dayCellClassNames = (arg: { date: Date }) => {
+    const classes = [];
+    if (lastOrderDate && arg.date <= lastOrderDate) {
+      classes.push("disabled-day"); // Класс для дней до lastOrderDate включительно
+    }
+    return classes;
+  };
+
   const handleDateClick = async (clickInfo: DateClickArg) => {
     const dateStr = clickInfo.dateStr;
     const clickedDate = new Date(dateStr);
 
     // 🔹 Проверка — нельзя ставить крестики до последней заявки включительно
     if (lastOrderDate && clickedDate <= lastOrderDate) {
-      setError("Нельзя отмечать санитарные дни до последней заявки включительно");
+      alert("Нельзя отмечать санитарные дни до последней заявки включительно");
       return;
     }
 
-    setError(null);
     const existingEventIndex = events.findIndex((event) => event.start === dateStr);
 
     if (existingEventIndex !== -1) {
@@ -96,7 +103,7 @@ const Sanitary: React.FC = () => {
         if (!response.ok) throw new Error(`Failed to remove sanitary mark`);
       } catch (error) {
         console.error("Error removing sanitary mark:", error);
-        setEvents(events); // Revert
+        setEvents(events);
       }
     } else {
       // Add
@@ -126,7 +133,6 @@ const Sanitary: React.FC = () => {
     const dateStr = clickInfo.event.startStr;
     const updatedEvents = events.filter((event) => event.start !== dateStr);
     setEvents(updatedEvents);
-    setError(null);
 
     try {
       const response = await fetch("/api/change-sanitary", {
@@ -161,11 +167,6 @@ const Sanitary: React.FC = () => {
 
   return (
     <div className="w-[740px] mx-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] overflow-hidden">
-      {error && (
-        <div className="p-2 text-red-600 bg-red-100 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
       <div className="custom-calendar overflow-hidden">
         <FullCalendar
           ref={calendarRef}
@@ -183,12 +184,7 @@ const Sanitary: React.FC = () => {
           eventClick={handleEventClick}
           eventContent={renderEventContent}
           dayMaxEvents={Infinity}
-          dayCellClassNames={(arg) => {
-            if (lastOrderDate && new Date(arg.date) <= lastOrderDate) {
-              return ["disabled-day"];
-            }
-            return [];
-          }}
+          dayCellClassNames={dayCellClassNames} // 🔹 Добавляем стили для ячеек
         />
       </div>
     </div>
