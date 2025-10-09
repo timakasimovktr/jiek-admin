@@ -27,10 +27,6 @@ interface SettingsRow extends RowDataPacket {
   value: string;
 }
 
-// interface CountRow extends RowDataPacket {
-//   cnt: number;
-// }
-
 export async function POST(req: NextRequest) {
   try {
     const { count } = await req.json();
@@ -139,11 +135,25 @@ export async function POST(req: NextRequest) {
               }
               break;
             } else if (booking.visit_type === "extra") {
-              // Для трехдневных свиданий: переносим после последнего санитарного дня
-              const lastSanitaryDay = sanitaryDates
+              // Для трехдневных свиданий: переносим после последнего санитарного дня в последовательности
+              const relevantSanitaryDays = sanitaryDates
                 .filter(date => new Date(date) >= start)
-                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+              let lastSanitaryDay = relevantSanitaryDays[0];
               if (lastSanitaryDay) {
+                // Находим последний день в последовательности санитарных дней
+                let currentDate = new Date(lastSanitaryDay);
+                let i = 0;
+                while (i < relevantSanitaryDays.length - 1) {
+                  const nextDate = new Date(relevantSanitaryDays[i + 1]);
+                  if ((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24) === 1) {
+                    currentDate = nextDate;
+                    lastSanitaryDay = relevantSanitaryDays[i + 1];
+                    i++;
+                  } else {
+                    break;
+                  }
+                }
                 start.setDate(new Date(lastSanitaryDay).getDate() + 1);
               }
               duration = 3;
@@ -178,7 +188,29 @@ export async function POST(req: NextRequest) {
                 start.setTime(minDate.getTime());
               }
             } else if (booking.visit_type === "extra") {
-              start.setDate(nextDayAfterEnd.getDate() + 1);
+              // Для трехдневных свиданий: переносим после последнего санитарного дня в последовательности
+              const relevantSanitaryDays = sanitaryDates
+                .filter(date => new Date(date) >= nextDayAfterEnd)
+                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+              let lastSanitaryDay = relevantSanitaryDays[0];
+              if (lastSanitaryDay) {
+                // Находим последний день в последовательности санитарных дней
+                let currentDate = new Date(lastSanitaryDay);
+                let i = 0;
+                while (i < relevantSanitaryDays.length - 1) {
+                  const nextDate = new Date(relevantSanitaryDays[i + 1]);
+                  if ((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24) === 1) {
+                    currentDate = nextDate;
+                    lastSanitaryDay = relevantSanitaryDays[i + 1];
+                    i++;
+                  } else {
+                    break;
+                  }
+                }
+                start.setDate(new Date(lastSanitaryDay).getDate() + 1);
+              } else {
+                start.setDate(nextDayAfterEnd.getDate() + 1);
+              }
               duration = 3;
               newVisitType = "extra";
             } else {
@@ -309,9 +341,9 @@ export async function POST(req: NextRequest) {
       if (booking.telegram_chat_id) {
         try {
           await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          chat_id: booking.telegram_chat_id,
-          text: messageBot,
-        });
+            chat_id: booking.telegram_chat_id,
+            text: messageBot,
+          });
           console.log(`Sent user message for booking ${booking.id}`);
         } catch (err) {
           console.error(`Failed to send user message for booking ${booking.id}:`, err);
