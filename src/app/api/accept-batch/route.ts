@@ -92,8 +92,8 @@ export async function POST(req: NextRequest) {
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
 
     for (const booking of pendingRows) {
-      let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-      let newVisitType: "short" | "long" | "extra" = booking.visit_type;
+      const duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+      const newVisitType: "short" | "long" | "extra" = booking.visit_type;
       const timeZone = "Asia/Tashkent";
       const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10);
