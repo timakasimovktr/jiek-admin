@@ -86,7 +86,7 @@ const Sanitary: React.FC = () => {
       lastOrderDate &&
       clickedDate.getTime() <= lastOrderDate.getTime() + 72 * 60 * 60 * 1000
     ) {
-      alert("Нельзя отмечать санитарные дни до последней заявки включительно");
+      alert("На эти дни уже принята заявка. Нельзя ставить санитарные дни.");
       return;
     }
 

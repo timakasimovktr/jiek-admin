@@ -108,8 +108,7 @@ export async function POST(req: NextRequest) {
         [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
 
-      // Преобразование и валидация санитарных дней
-      const sanitaryDates = sanitaryDays
+          const sanitaryDates = sanitaryDays
         .map(row => {
           let dateStr = row.date;
 
@@ -148,6 +147,8 @@ export async function POST(req: NextRequest) {
       );
 
       for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
+        let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+        let newVisitType: "short" | "long" | "extra" = booking.visit_type;
         let isValidDate = true;
         let adjustedDuration = duration;
 
