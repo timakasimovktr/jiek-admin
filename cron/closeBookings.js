@@ -1,6 +1,7 @@
-import cron from "node-cron";
-import axios from "axios";
-import dotenv from "dotenv";
+// cron/closeBookings.js
+const cron = require("node-cron");
+const axios = require("axios");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
