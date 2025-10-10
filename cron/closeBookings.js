@@ -1,6 +1,8 @@
-// cron/closeBookings.js
 import cron from "node-cron";
 import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const API_URL = process.env.API_URL || "https://meet.test-dunyo.uz/api/close-expired-bookings";
 const CRON_SECRET = process.env.CRON_SECRET || "your-secret-token";
