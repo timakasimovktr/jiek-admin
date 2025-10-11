@@ -172,7 +172,6 @@ export async function POST(req: NextRequest) {
 
         // Если дата все еще недействительна, переносим на следующую свободную дату
         if (!isValidDate) {
-          start = addDays(start, 1);
           let nextStart = start;
           let hasConflict = true;
           while (hasConflict && nextStart <= maxDate) {
