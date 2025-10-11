@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, parseISO } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { cookies } from "next/headers";
 
@@ -16,7 +16,7 @@ interface Relative {
 interface Booking extends RowDataPacket {
   id: number;
   visit_type: "short" | "long" | "extra";
-  created_at: string;
+  created_at: string | Date;
   relatives: string;
   telegram_chat_id?: string;
   colony: number;
@@ -90,19 +90,33 @@ export async function POST(req: NextRequest) {
 
     let assignedCount = 0;
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
-
     const timeZone = "Asia/Tashkent";
 
     for (const booking of pendingRows) {
       let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
       let newVisitType: "short" | "long" | "extra" = booking.visit_type;
 
-      // Parse created_at as a UTC timestamp and convert to Asia/Tashkent
-      const createdDate = parseISO(booking.created_at);
-      if (isNaN(createdDate.getTime())) {
-        console.error(`Ariza ${booking.id}: Noto'g'ri created_at formati: ${booking.created_at}`);
+      // Parse created_at
+      let createdDate: Date;
+      if (typeof booking.created_at === "string") {
+        try {
+          createdDate = parseISO(booking.created_at);
+        } catch (e) {
+          console.error(`Ariza ${booking.id}: Noto'g'ri created_at formati: ${booking.created_at}`, e);
+          continue;
+        }
+      } else if (booking.created_at instanceof Date) {
+        createdDate = booking.created_at;
+      } else {
+        console.error(`Ariza ${booking.id}: created_at noto'g'ri tur: ${typeof booking.created_at}`);
         continue;
       }
+
+      if (isNaN(createdDate.getTime())) {
+        console.error(`Ariza ${booking.id}: created_at ni parse qilishda xato`);
+        continue;
+      }
+
       const createdDateZoned = toZonedTime(createdDate, timeZone);
       const minDate = addDays(createdDateZoned, 10);
       const maxDate = addDays(minDate, 60);
@@ -111,8 +125,8 @@ export async function POST(req: NextRequest) {
       let assignedRoomId: number | null = null;
 
       // Fetch sanitary days
-      const minDateStr = format(minDate, 'yyyy-MM-dd');
-      const maxDateStr = format(maxDate, 'yyyy-MM-dd');
+      const minDateStr = formatInTimeZone(minDate, timeZone, 'yyyy-MM-dd');
+      const maxDateStr = formatInTimeZone(maxDate, timeZone, 'yyyy-MM-dd');
       const [sanitaryDays] = await pool.query<RowDataPacket[]>(
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
         [colony, minDateStr, maxDateStr]
@@ -120,13 +134,16 @@ export async function POST(req: NextRequest) {
 
       const sanitaryDates = sanitaryDays
         .map(row => {
-          const dateStr = row.date;
+          let dateStr = row.date;
           if (!dateStr) {
             console.warn(`Sanitary_days jadvalida bo'sh sana, koloniya ${colony}:`, row.date);
             return null;
           }
           try {
-            // Assume date is in YYYY-MM-DD format and treat as local Tashkent date
+            // Handle various date formats (YYYY-MM-DD or ISO with time)
+            if (typeof dateStr === "string" && dateStr.includes("T")) {
+              dateStr = dateStr.split("T")[0]; // Strip time component
+            }
             const parsedDate = parseISO(`${dateStr}T00:00:00`);
             if (isNaN(parsedDate.getTime())) {
               console.warn(`Sanitary_days jadvalida noto'g'ri sana formati, koloniya ${colony}: ${dateStr}`);
@@ -161,6 +178,9 @@ export async function POST(req: NextRequest) {
           const day = addDays(start, d);
           if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
             isValidDate = false;
+            console.log(
+              `Ariza ${booking.id}: ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} sanitarni kun yoki undan oldingi kun bilan to'qnashdi`
+            );
             break;
           }
         }
@@ -176,6 +196,9 @@ export async function POST(req: NextRequest) {
             const day = addDays(start, d);
             if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
               isValidDate = false;
+              console.log(
+                `Ariza ${booking.id}: Qisqartirilgan davomiylikda ham ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} to'qnashdi`
+              );
               break;
             }
           }
@@ -191,6 +214,9 @@ export async function POST(req: NextRequest) {
               const day = addDays(nextStart, d);
               if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
                 hasConflict = true;
+                console.log(
+                  `Ariza ${booking.id}: ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} keyingi sanada to'qnashdi`
+                );
                 break;
               }
             }
@@ -206,8 +232,7 @@ export async function POST(req: NextRequest) {
           console.log(
             `Ariza ${booking.id}: Sanitariya kunidan keyin ${formatInTimeZone(start, timeZone, 'yyyy-MM-dd')} ga o'tkazildi`
           );
-          // Ensure the new start date is checked for room availability
-          isValidDate = true;
+          isValidDate = true; // Reset for room check
         }
 
         // Check room availability
@@ -330,11 +355,9 @@ export async function POST(req: NextRequest) {
 
     console.log(
       `Ommaviy qayta ishlash yakunlandi: ${pendingRows.length} tadan ${assignedCount} ta ariza tayinlandi, maksimal ${rooms} xona ishlatildi`
-    );
-
-    return NextResponse.json({ success: true, assignedBookings, assignedCount });
+    );return NextResponse.json({ success: true, assignedBookings, assignedCount });
   } catch (err) {
-    console.error("Xato tafsilotlari:", err);
-    return NextResponse.json({ error: "Server xatosi" }, { status: 500 });
+  console.error("Xato tafsilotlari:", err);
+  return NextResponse.json({ error: "Server xatosi"}, { status: 500 });
   }
 }
