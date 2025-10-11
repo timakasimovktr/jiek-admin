@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays, parseISO } from "date-fns";
-import { formatInTimeZone, toZonedTime } from "date-fns-tz";
+import { addDays, isSameDay, parseISO } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -16,7 +16,7 @@ interface Relative {
 interface Booking extends RowDataPacket {
   id: number;
   visit_type: "short" | "long" | "extra";
-  created_at: string | Date;
+  created_at: string;
   relatives: string;
   telegram_chat_id?: string;
   colony: number;
@@ -90,46 +90,22 @@ export async function POST(req: NextRequest) {
 
     let assignedCount = 0;
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
-    const timeZone = "Asia/Tashkent";
 
     for (const booking of pendingRows) {
       let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
       let newVisitType: "short" | "long" | "extra" = booking.visit_type;
-
-      // Parse created_at
-      let createdDate: Date;
-      if (typeof booking.created_at === "string") {
-        try {
-          createdDate = parseISO(booking.created_at);
-        } catch (e) {
-          console.error(`Ariza ${booking.id}: Noto'g'ri created_at formati: ${booking.created_at}`, e);
-          continue;
-        }
-      } else if (booking.created_at instanceof Date) {
-        createdDate = booking.created_at;
-      } else {
-        console.error(`Ariza ${booking.id}: created_at noto'g'ri tur: ${typeof booking.created_at}`);
-        continue;
-      }
-
-      if (isNaN(createdDate.getTime())) {
-        console.error(`Ariza ${booking.id}: created_at ni parse qilishda xato`);
-        continue;
-      }
-
-      const createdDateZoned = toZonedTime(createdDate, timeZone);
+      const timeZone = "Asia/Tashkent";
+      const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10);
       const maxDate = addDays(minDate, 60);
       let start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
 
-      // Fetch sanitary days
-      const minDateStr = formatInTimeZone(minDate, timeZone, 'yyyy-MM-dd');
-      const maxDateStr = formatInTimeZone(maxDate, timeZone, 'yyyy-MM-dd');
+      // Получение санитарных дней
       const [sanitaryDays] = await pool.query<RowDataPacket[]>(
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
-        [colony, minDateStr, maxDateStr]
+        [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
 
       const sanitaryDates = sanitaryDays
@@ -139,17 +115,19 @@ export async function POST(req: NextRequest) {
             console.warn(`Sanitary_days jadvalida bo'sh sana, koloniya ${colony}:`, row.date);
             return null;
           }
+          if (dateStr instanceof Date) {
+            dateStr = dateStr.toISOString().slice(0, 10);
+          } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
+            dateStr = dateStr.slice(0, 10);
+          }
           try {
-            // Handle various date formats (YYYY-MM-DD or ISO with time)
-            if (typeof dateStr === "string" && dateStr.includes("T")) {
-              dateStr = dateStr.split("T")[0]; // Strip time component
-            }
-            const parsedDate = parseISO(`${dateStr}T00:00:00`);
+            const parsedDate = parseISO(dateStr);
             if (isNaN(parsedDate.getTime())) {
               console.warn(`Sanitary_days jadvalida noto'g'ri sana formati, koloniya ${colony}: ${dateStr}`);
               return null;
             }
-            return toZonedTime(parsedDate, timeZone);
+            console.log(`Sanitariya kuni sanasi qayta ishlandi: ${dateStr}`);
+            return parsedDate;
           } catch (e) {
             console.error(`Ariza ${booking.id} uchun sana ${dateStr} ni parse qilishda xato:`, e);
             return null;
@@ -159,69 +137,53 @@ export async function POST(req: NextRequest) {
 
       console.log(
         `Ariza ${booking.id} (turi: ${booking.visit_type}): Sanitariya kunlari`,
-        sanitaryDates.map(d => formatInTimeZone(d, timeZone, 'yyyy-MM-dd'))
+        sanitaryDates.map(d => d.toISOString().slice(0, 10))
       );
 
-      // Helper function to check if two dates are the same day in the given time zone
-      const isSameDayZoned = (d1: Date, d2: Date) => {
-        return formatInTimeZone(d1, timeZone, 'yyyy-MM-dd') === formatInTimeZone(d2, timeZone, 'yyyy-MM-dd');
-      };
-
-      // Check availability and assign room
       for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
         let isValidDate = true;
         let adjustedDuration = duration;
         newVisitType = booking.visit_type;
 
-        // Check for conflicts with sanitary days or the day before
+        // Проверка конфликта с санитарным днем или днем перед ним
         for (let d = 0; d < adjustedDuration; d++) {
           const day = addDays(start, d);
-          if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
+          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
             isValidDate = false;
-            console.log(
-              `Ariza ${booking.id}: ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} sanitarni kun yoki undan oldingi kun bilan to'qnashdi`
-            );
             break;
           }
         }
 
-        // If conflict and duration > 1, try reducing to 1 day
+        // Если конфликт и продолжительность > 1, пытаемся сократить до 1 дня
         if (!isValidDate && duration > 1) {
           console.log(`Ariza ${booking.id}: Sanitariya kuni bilan to'qnashuv, 1 kunga qisqartirildi`);
           adjustedDuration = 1;
           newVisitType = "short";
           isValidDate = true;
-          // Recheck with new duration
+          // Повторная проверка с новой продолжительностью
           for (let d = 0; d < adjustedDuration; d++) {
             const day = addDays(start, d);
-            if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
+            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
               isValidDate = false;
-              console.log(
-                `Ariza ${booking.id}: Qisqartirilgan davomiylikda ham ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} to'qnashdi`
-              );
               break;
             }
           }
         }
 
-        // If date is invalid, find the next valid start date
+        // Если дата все еще недействительна, переносим на следующую свободную дату
         if (!isValidDate) {
-          let nextStart = addDays(start, 1);
+          start = addDays(start, 1);
+          let nextStart = start;
           let hasConflict = true;
           while (hasConflict && nextStart <= maxDate) {
+            nextStart = addDays(nextStart, 1);
             hasConflict = false;
             for (let d = 0; d < adjustedDuration; d++) {
               const day = addDays(nextStart, d);
-              if (sanitaryDates.some(sanitary => isSameDayZoned(sanitary, day) || isSameDayZoned(addDays(sanitary, -1), day))) {
+              if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
                 hasConflict = true;
-                console.log(
-                  `Ariza ${booking.id}: ${formatInTimeZone(day, timeZone, 'yyyy-MM-dd')} keyingi sanada to'qnashdi`
-                );
                 break;
               }
-            }
-            if (hasConflict) {
-              nextStart = addDays(nextStart, 1);
             }
           }
           if (nextStart > maxDate) {
@@ -230,52 +192,47 @@ export async function POST(req: NextRequest) {
           }
           start = nextStart;
           console.log(
-            `Ariza ${booking.id}: Sanitariya kunidan keyin ${formatInTimeZone(start, timeZone, 'yyyy-MM-dd')} ga o'tkazildi`
+            `Ariza ${booking.id}: Sanitariya kunidan keyin ${start.toISOString().slice(0, 10)} ga o'tkazildi`
           );
-          isValidDate = true; // Reset for room check
+          continue;
         }
 
-        // Check room availability
-        if (isValidDate) {
-          for (let roomId = 1; roomId <= rooms; roomId++) {
-            let canFit = true;
-            for (let d = 0; d < adjustedDuration; d++) {
-              const day = addDays(start, d);
-              const dayStr = formatInTimeZone(day, timeZone, 'yyyy-MM-dd');
-              const dayStart = `${dayStr} 00:00:00`;
-              const dayEnd = `${dayStr} 23:59:59`;
-              const endDay = addDays(start, adjustedDuration - 1);
-              const endDayStr = formatInTimeZone(endDay, timeZone, 'yyyy-MM-dd');
-              const endDayEnd = `${endDayStr} 23:59:59`;
+        // Проверка доступности комнаты
+        for (let roomId = 1; roomId <= rooms; roomId++) {
+          let canFit = true;
+          for (let d = 0; d < adjustedDuration; d++) {
+            const day = addDays(start, d);
+            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
+            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+            const endDay = addDays(start, adjustedDuration - 1);
 
-              const [occupiedRows] = await pool.query<RowDataPacket[]>(
-                `SELECT COUNT(*) as cnt FROM bookings 
-                 WHERE status = 'approved' 
-                 AND room_id = ? 
-                 AND colony = ? 
-                 AND (
-                   (start_datetime <= ? AND end_datetime >= ?) OR 
-                   (start_datetime <= ? AND end_datetime >= ?) OR 
-                   (start_datetime >= ? AND end_datetime <= ?)
-                 )`,
-                [roomId, colony, dayEnd, dayStart, endDayEnd, dayStart, dayStart, endDayEnd]
-              );
+            const [occupiedRows] = await pool.query<RowDataPacket[]>(
+              `SELECT COUNT(*) as cnt FROM bookings 
+               WHERE status = 'approved' 
+               AND room_id = ? 
+               AND colony = ? 
+               AND (
+                 (start_datetime <= ? AND end_datetime >= ?) OR 
+                 (start_datetime <= ? AND end_datetime >= ?) OR 
+                 (start_datetime >= ? AND end_datetime <= ?)
+               )`,
+              [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, endDay]
+            );
 
-              if (occupiedRows[0].cnt > 0) {
-                canFit = false;
-                console.log(`Ariza ${booking.id}: Xona ${roomId} band, ${dayStr}`);
-                break;
-              }
-            }
-            if (canFit) {
-              found = true;
-              assignedRoomId = roomId;
-              duration = adjustedDuration;
-              console.log(
-                `Ariza ${booking.id} uchun xona ${roomId} ${formatInTimeZone(start, timeZone, 'yyyy-MM-dd')} ga tayinlandi (davomiylik: ${duration} kun, turi: ${newVisitType})`
-              );
+            if (occupiedRows[0].cnt > 0) {
+              canFit = false;
+              console.log(`Ariza ${booking.id}: Xona ${roomId} band, ${day.toISOString().slice(0, 10)}`);
               break;
             }
+          }
+          if (canFit) {
+            found = true;
+            assignedRoomId = roomId;
+            duration = adjustedDuration;
+            console.log(
+              `Ariza ${booking.id} uchun xona ${roomId} ${start.toISOString().slice(0, 10)} ga tayinlandi (davomiylik: ${duration} kun, turi: ${newVisitType})`
+            );
+            break;
           }
         }
 
@@ -289,9 +246,9 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Update booking
-      const startStr = `${formatInTimeZone(start, timeZone, 'yyyy-MM-dd')} 00:00:00`;
-      const endStr = `${formatInTimeZone(addDays(start, duration - 1), timeZone, 'yyyy-MM-dd')} 23:59:59`;
+      // Обновление бронирования
+      const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
+      const endStr = addDays(start, duration - 1).toISOString().slice(0, 10) + " 23:59:59";
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
@@ -312,8 +269,18 @@ export async function POST(req: NextRequest) {
       const messageGroup = `
 🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
 👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${formatInTimeZone(createdDateZoned, timeZone, 'dd.MM.yyyy')}
-⌚ Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Asia/Tashkent",
+      })}
+⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Asia/Tashkent",
+      })}
 🏛️ Koloniya: ${booking.colony}  
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
@@ -322,8 +289,18 @@ export async function POST(req: NextRequest) {
       const messageBot = `
 🎉 Ariza №${booking.colony_application_number} tasdiqlandi!
 👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${formatInTimeZone(createdDateZoned, timeZone, 'dd.MM.yyyy')}
-⌚ Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Asia/Tashkent",
+      })}
+⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "Asia/Tashkent",
+      })}
 ⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
@@ -355,9 +332,11 @@ export async function POST(req: NextRequest) {
 
     console.log(
       `Ommaviy qayta ishlash yakunlandi: ${pendingRows.length} tadan ${assignedCount} ta ariza tayinlandi, maksimal ${rooms} xona ishlatildi`
-    );return NextResponse.json({ success: true, assignedBookings, assignedCount });
+    );
+
+    return NextResponse.json({ success: true, assignedBookings, assignedCount });
   } catch (err) {
-  console.error("Xato tafsilotlari:", err);
-  return NextResponse.json({ error: "Server xatosi"}, { status: 500 });
+    console.error("DB xatosi:", err);
+    return NextResponse.json({ error: "DB xatosi" }, { status: 500 });
   }
 }
