@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays, isSameDay, parseISO } from "date-fns";
+import { addDays, isSameDay, parseISO, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { cookies } from "next/headers";
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
 
-          const sanitaryDates = sanitaryDays
+      const sanitaryDates = sanitaryDays
         .map(row => {
           let dateStr = row.date;
 
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         let adjustedDuration = duration;
 
         // Проверка конфликта с санитарным днем или днем перед ним
-        for (let d = -1; d < duration; d++) {
+        for (let d = 0; d <= duration; d++) {
           const day = addDays(start, d);
           if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
             isValidDate = false;
@@ -162,20 +162,20 @@ export async function POST(req: NextRequest) {
         }
 
         // Если конфликт и продолжительность > 1, сокращаем до 1 дня
-        if (!isValidDate && duration > 1) {
+        if (!isValidDate && duration > 1 && duration < 3) {
           console.log(`Ariza ${booking.id}: Sanitariya kuni bilan to'qnashuv, 1 kunga qisqartirildi`);
           adjustedDuration = 1;
           newVisitType = "short";
           isValidDate = true;
           // Повторная проверка с новой продолжительностью
-          for (let d = -1; d < adjustedDuration; d++) {
+          for (let d = 0; d <= adjustedDuration; d++) {
             const day = addDays(start, d);
             if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
               isValidDate = false;
               break;
             }
           }
-        }
+        } 
 
         // Если дата недействительна, пропускаем период санитарных дней
         if (!isValidDate) {
@@ -199,19 +199,14 @@ export async function POST(req: NextRequest) {
             const day = addDays(start, d);
             const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
             const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
-            const endDay = addDays(start, adjustedDuration - 1);
 
             const [occupiedRows] = await pool.query<RowDataPacket[]>(
               `SELECT COUNT(*) as cnt FROM bookings 
                WHERE status = 'approved' 
                AND room_id = ? 
                AND colony = ? 
-               AND (
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime <= ? AND end_datetime >= ?) OR 
-                 (start_datetime >= ? AND end_datetime <= ?)
-               )`,
-              [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, endDay]
+               AND start_datetime <= ? AND end_datetime >= ?`,
+              [roomId, colony, dayEnd, dayStart]
             );
 
             if (occupiedRows[0].cnt > 0) {
@@ -242,8 +237,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Обновление бронирования
-      const startStr = start.toISOString().slice(0, 10) + " 00:00:00";
-      const endStr = addDays(start, duration - 1).toISOString().slice(0, 10) + " 23:59:59";
+      const startStr = format(start, 'yyyy-MM-dd') + " 00:00:00";
+      const endDate = addDays(start, duration - 1);
+      const endStr = format(endDate, 'yyyy-MM-dd') + " 23:59:59";
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
