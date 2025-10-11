@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
       );
 
-          const sanitaryDates = sanitaryDays
+      const sanitaryDates = sanitaryDays
         .map(row => {
           let dateStr = row.date;
 
@@ -153,9 +153,9 @@ export async function POST(req: NextRequest) {
         let adjustedDuration = duration;
 
         // Проверка конфликта с санитарным днем или днем перед ним
-        for (let d = -1; d < duration; d++) {
+        for (let d = 0; d < duration; d++) {
           const day = addDays(start, d);
-          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
+          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(sanitary, addDays(day, 1)))) {
             isValidDate = false;
             break;
           }
@@ -168,9 +168,9 @@ export async function POST(req: NextRequest) {
           newVisitType = "short";
           isValidDate = true;
           // Повторная проверка с новой продолжительностью
-          for (let d = -1; d < adjustedDuration; d++) {
+          for (let d = 0; d < adjustedDuration; d++) {
             const day = addDays(start, d);
-            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
+            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(sanitary, addDays(day, 1)))) {
               isValidDate = false;
               break;
             }
