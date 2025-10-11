@@ -111,21 +111,15 @@ export async function POST(req: NextRequest) {
       const sanitaryDates = sanitaryDays
         .map(row => {
           let dateStr = row.date;
-
-          // Проверка на null или undefined
           if (!dateStr) {
             console.warn(`Sanitary_days jadvalida bo'sh sana, koloniya ${colony}:`, row.date);
             return null;
           }
-
-          // Обработка формата даты
           if (dateStr instanceof Date) {
             dateStr = dateStr.toISOString().slice(0, 10);
           } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
             dateStr = dateStr.slice(0, 10);
           }
-
-          // Проверка валидности даты
           try {
             const parsedDate = parseISO(dateStr);
             if (isNaN(parsedDate.getTime())) {
@@ -147,21 +141,20 @@ export async function POST(req: NextRequest) {
       );
 
       for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
-        duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-        newVisitType = booking.visit_type;
         let isValidDate = true;
         let adjustedDuration = duration;
+        newVisitType = booking.visit_type;
 
         // Проверка конфликта с санитарным днем или днем перед ним
-        for (let d = 0; d < duration; d++) {
+        for (let d = 0; d < adjustedDuration; d++) {
           const day = addDays(start, d);
-          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(sanitary, addDays(day, 1)))) {
+          if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
             isValidDate = false;
             break;
           }
         }
 
-        // Если конфликт и продолжительность > 1, сокращаем до 1 дня
+        // Если конфликт и продолжительность > 1, пытаемся сократить до 1 дня
         if (!isValidDate && duration > 1) {
           console.log(`Ariza ${booking.id}: Sanitariya kuni bilan to'qnashuv, 1 kunga qisqartirildi`);
           adjustedDuration = 1;
@@ -170,25 +163,36 @@ export async function POST(req: NextRequest) {
           // Повторная проверка с новой продолжительностью
           for (let d = 0; d < adjustedDuration; d++) {
             const day = addDays(start, d);
-            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(sanitary, addDays(day, 1)))) {
+            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
               isValidDate = false;
               break;
             }
           }
         }
 
-        // Если дата недействительна, пропускаем период санитарных дней
+        // Если дата все еще недействительна, переносим на следующую свободную дату
         if (!isValidDate) {
-          const conflictingSanitary = sanitaryDates.find(sanitary => sanitary >= start);
-          if (conflictingSanitary) {
-            const sanitaryEnd = addDays(conflictingSanitary, 1);
-            start = sanitaryEnd > minDate ? sanitaryEnd : minDate;
-            console.log(
-              `Ariza ${booking.id}: Sanitariya kunidan keyin ${start.toISOString().slice(0, 10)} ga o'tkazildi`
-            );
-          } else {
-            start = addDays(start, 1);
+          let nextStart = start;
+          let hasConflict = true;
+          while (hasConflict && nextStart <= maxDate) {
+            nextStart = addDays(nextStart, 1);
+            hasConflict = false;
+            for (let d = 0; d < adjustedDuration; d++) {
+              const day = addDays(nextStart, d);
+              if (sanitaryDates.some(sanitary => isSameDay(sanitary, day) || isSameDay(addDays(sanitary, -1), day))) {
+                hasConflict = true;
+                break;
+              }
+            }
           }
+          if (nextStart > maxDate) {
+            console.warn(`Ariza ${booking.id}: Max datadan keyin sana topilmadi`);
+            break;
+          }
+          start = nextStart;
+          console.log(
+            `Ariza ${booking.id}: Sanitariya kunidan keyin ${start.toISOString().slice(0, 10)} ga o'tkazildi`
+          );
           continue;
         }
 
