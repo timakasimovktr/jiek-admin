@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays, isSameDay, parseISO, format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { addDays, parseISO, format } from "date-fns";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -91,6 +91,14 @@ export async function POST(req: NextRequest) {
     let assignedCount = 0;
     const assignedBookings: { bookingId: number; startDate: string; roomId: number; newVisitType?: string }[] = [];
 
+    function getZonedDayStr(date: Date, tz: string): string {
+      return formatInTimeZone(date, tz, 'yyyyMMdd');
+    }
+
+    function isSameZonedDay(d1: Date, d2: Date, tz: string): boolean {
+      return getZonedDayStr(d1, tz) === getZonedDayStr(d2, tz);
+    }
+
     for (const booking of pendingRows) {
       const originalDuration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
       let newVisitType: "short" | "long" | "extra" = booking.visit_type;
@@ -105,7 +113,7 @@ export async function POST(req: NextRequest) {
       // Получение санитарных дней
       const [sanitaryDays] = await pool.query<RowDataPacket[]>(
         `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
-        [colony, minDate.toISOString().slice(0, 10), maxDate.toISOString().slice(0, 10)]
+        [colony, formatInTimeZone(minDate, timeZone, 'yyyy-MM-dd'), formatInTimeZone(maxDate, timeZone, 'yyyy-MM-dd')]
       );
 
       const sanitaryDates = sanitaryDays
@@ -144,19 +152,18 @@ export async function POST(req: NextRequest) {
         let adjustedDuration = originalDuration;
         let isValidDate = true;
 
-        // Проверка, прошел ли последний санитарный день
+        // Получение санитарных дней
         const lastSanitaryDay = sanitaryDates.length > 0 ? sanitaryDates[sanitaryDates.length - 1] : null;
-        const isAfterSanitary = lastSanitaryDay && start > lastSanitaryDay;
+        const isAfterSanitary = lastSanitaryDay && getZonedDayStr(start, timeZone) > getZonedDayStr(lastSanitaryDay, timeZone);
 
-        // Если санитарные дни прошли, используем исходную длительность
         if (isAfterSanitary) {
           adjustedDuration = originalDuration;
           newVisitType = booking.visit_type;
         } else {
           // Проверка конфликта с санитарным днем или днем перед ним
-          for (let d = -1; d < adjustedDuration; d++) {
+          for (let d = 0; d < adjustedDuration; d++) {
             const day = addDays(start, d);
-            if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
+            if (sanitaryDates.some(sanitary => isSameZonedDay(sanitary, day, timeZone))) {
               isValidDate = false;
               break;
             }
@@ -168,9 +175,9 @@ export async function POST(req: NextRequest) {
             newVisitType = "short";
             isValidDate = true;
             // Повторная проверка с новой длительностью и дня перед началом
-            for (let d = -1; d < adjustedDuration; d++) {
+            for (let d = 0; d < adjustedDuration; d++) {
               const day = addDays(start, d);
-              if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
+              if (sanitaryDates.some(sanitary => isSameZonedDay(sanitary, day, timeZone))) {
                 isValidDate = false;
                 break;
               }
@@ -180,14 +187,15 @@ export async function POST(req: NextRequest) {
 
         // Если дата недействительна, пропускаем период санитарных дней
         if (!isValidDate) {
-          const conflictingSanitary = sanitaryDates.find(sanitary => sanitary >= start);
+          const conflictingSanitary = sanitaryDates.find(s => getZonedDayStr(s, timeZone) >= getZonedDayStr(start, timeZone));
           if (conflictingSanitary) {
             let sanitaryEnd = conflictingSanitary;
             // Находим последний санитарный день в последовательности
             for (let i = 0; i < sanitaryDates.length; i++) {
-              if (sanitaryDates[i] > sanitaryEnd && isSameDay(addDays(sanitaryEnd, 1), sanitaryDates[i])) {
+              if (getZonedDayStr(sanitaryDates[i], timeZone) > getZonedDayStr(sanitaryEnd, timeZone) &&
+                  isSameZonedDay(addDays(sanitaryEnd, 1), sanitaryDates[i], timeZone)) {
                 sanitaryEnd = sanitaryDates[i];
-              } else if (sanitaryDates[i] > sanitaryEnd) {
+              } else if (getZonedDayStr(sanitaryDates[i], timeZone) > getZonedDayStr(sanitaryEnd, timeZone)) {
                 break;
               }
             }
@@ -279,7 +287,7 @@ export async function POST(req: NextRequest) {
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
-      })} (12:00 dan)
+      })} 
 🏛️ Koloniya: ${booking.colony}  
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
@@ -299,7 +307,7 @@ export async function POST(req: NextRequest) {
         month: "2-digit",
         year: "numeric",
         timeZone: "Asia/Tashkent",
-      })} (12:00 dan)
+      })}
 ⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
