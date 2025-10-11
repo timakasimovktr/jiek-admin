@@ -272,16 +272,12 @@ export async function POST(req: NextRequest) {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
         timeZone: "Asia/Tashkent",
       })}
 ⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
         timeZone: "Asia/Tashkent",
       })} (12:00 dan)
 🏛️ Koloniya: ${booking.colony}  
@@ -296,16 +292,12 @@ export async function POST(req: NextRequest) {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
         timeZone: "Asia/Tashkent",
       })}
 ⌚ Kelish sanasi: ${start.toLocaleString("uz-UZ", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
         timeZone: "Asia/Tashkent",
       })} (12:00 dan)
 ⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
