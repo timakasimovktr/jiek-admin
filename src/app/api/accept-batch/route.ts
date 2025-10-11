@@ -167,24 +167,32 @@ export async function POST(req: NextRequest) {
           adjustedDuration = 1;
           newVisitType = "short";
           isValidDate = true;
-          // Повторная проверка с новой продолжительностью
-          for (let d = 0; d <= adjustedDuration; d++) {
+          // Проверка с новой длительностью и дня перед началом
+          for (let d = -1; d < adjustedDuration; d++) {
             const day = addDays(start, d);
             if (sanitaryDates.some(sanitary => isSameDay(sanitary, day))) {
               isValidDate = false;
               break;
             }
           }
-        } 
+        }
 
         // Если дата недействительна, пропускаем период санитарных дней
         if (!isValidDate) {
           const conflictingSanitary = sanitaryDates.find(sanitary => sanitary >= start);
           if (conflictingSanitary) {
-            const sanitaryEnd = addDays(conflictingSanitary, 1);
-            start = sanitaryEnd > minDate ? sanitaryEnd : minDate;
+            let sanitaryEnd = conflictingSanitary;
+            // Находим последний санитарный день в последовательности
+            for (let i = 0; i < sanitaryDates.length; i++) {
+              if (sanitaryDates[i] > sanitaryEnd && isSameDay(addDays(sanitaryEnd, 1), sanitaryDates[i])) {
+                sanitaryEnd = sanitaryDates[i];
+              } else if (sanitaryDates[i] > sanitaryEnd) {
+                break;
+              }
+            }
+            start = addDays(sanitaryEnd, 1);
             console.log(
-              `Ariza ${booking.id}: Sanitariya kunidan keyin ${start.toISOString().slice(0, 10)} ga o'tkazildi`
+              `Ariza ${booking.id}: Sanitariya kunlaridan keyin ${start.toISOString().slice(0, 10)} ga o'tkazildi`
             );
           } else {
             start = addDays(start, 1);
@@ -197,8 +205,8 @@ export async function POST(req: NextRequest) {
           let canFit = true;
           for (let d = 0; d < adjustedDuration; d++) {
             const day = addDays(start, d);
-            const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-            const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
+            const dayStart = day.toISOString().slice(0, 10) + " 12:00:00";
+            const dayEnd = addDays(day, 1).toISOString().slice(0, 10) + " 12:00:00";
 
             const [occupiedRows] = await pool.query<RowDataPacket[]>(
               `SELECT COUNT(*) as cnt FROM bookings 
@@ -237,9 +245,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Обновление бронирования
-      const startStr = format(start, 'yyyy-MM-dd') + " 00:00:00";
+      const startStr = format(start, 'yyyy-MM-dd') + " 12:00:00";
       const endDate = addDays(start, duration);
-      const endStr = format(endDate, 'yyyy-MM-dd') + " 23:59:59";
+      const endStr = format(endDate, 'yyyy-MM-dd') + " 12:00:00";
 
       await pool.query(
         `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
