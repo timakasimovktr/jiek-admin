@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Если конфликт и продолжительность > 1, сокращаем до 1 дня
-        if (!isValidDate && duration > 1 && duration < 3) {
+        if (!isValidDate && duration > 1) {
           console.log(`Ariza ${booking.id}: Sanitariya kuni bilan to'qnashuv, 1 kunga qisqartirildi`);
           adjustedDuration = 1;
           newVisitType = "short";
