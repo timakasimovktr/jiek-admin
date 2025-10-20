@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [rows] = await pool.query<BookingRow[]>(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id, language FROM bookings WHERE id = ? AND colony = ?",
       [bookingId, colony]
     );
 
@@ -58,17 +58,33 @@ export async function POST(req: NextRequest) {
     // const relatives: Relative[] = JSON.parse(rows[0].relatives);
     // const relativeName = relatives[0]?.full_name || "N/A";
 
-//     const messageGroup = `
-// 📝 Ariza yangilandi. Nomer: ${bookingId} 
-// 👤 Arizachi: ${relativeName}
-// 📅 Berilgan sana: ${new Date(rows[0].created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
-// ⏲️ Yangi tur: ${approvedDays}-kunlik
-// 🔵 Holat: Yangilangan
-// `;
+    //     const messageGroup = `
+    // 📝 Sizning arizangiz №${colony_application_number} yangilandi. Tasdiqlangan kunlar: ${approvedDays}
+    // 👤 Arizachi: ${relativeName}
+    // 📅 Berilgan sana: ${new Date(rows[0].created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
+    // ⏲️ Yangi tur: ${approvedDays}-kunlik
+    // 🔵 Holat: Yangilangan
+    // `;
 
-    const messageBot = `
-📝 Sizning arizangiz №${colony_application_number} yangilandi. Tasdiqlangan kunlar: ${approvedDays}
-`;
+    const lang = rows[0].language || "uz";
+    let message = "";
+
+    if (lang === "ru") {
+      message = `
+📝 Ваша заявка №${colony_application_number} обновлена. 
+⏲️ Новый тип: ${approvedDays}-дневный
+🔵 Статус: Обновлено
+`;} else if (lang === "uzl") {
+      message = `
+📝 Sizning arizangiz №${colony_application_number} yangilandi. 
+⏲️ Yangi tur: ${approvedDays}-kunlik
+🔵 Holat: Yangilangan
+`;   } else { // uz
+      message = `
+📝 Сизнинг аризангиз №${colony_application_number} янгиланди. 
+⏲️ Янги тур: ${approvedDays}-кунлик
+🔵 Холат: Янгиланган
+`;   }
 
     // await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     //   chat_id: ADMIN_CHAT_ID,
@@ -78,7 +94,7 @@ export async function POST(req: NextRequest) {
     if (rows[0].telegram_chat_id) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: rows[0].telegram_chat_id,
-        text: messageBot,
+        text: message,
       });
     }
 

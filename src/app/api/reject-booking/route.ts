@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [rows] = await pool.query<BookingRow[]>(
-      "SELECT prisoner_name, created_at, relatives, telegram_chat_id FROM bookings WHERE id = ? AND colony = ?",
+      "SELECT prisoner_name, created_at, relatives, telegram_chat_id, language FROM bookings WHERE id = ? AND colony = ?",
       [bookingId, colony]
     );
 
@@ -50,13 +50,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
 
-    const message = `
-❌ Ariza rad etildi. Raqam: ${colony_application_number} 
+    const lang = booking.language || "uz";
+    let message = "";
+
+//     const message = `
+// ❌ Ariza rad etildi. Raqam: ${colony_application_number} 
+// 👤 Mas'ul xodim
+// 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+// 💬 Sabab: ${reason}
+// 🔴 Holat: Rad etilgan
+//     `;
+
+    if (lang === "ru") {
+      message = `
+❌ Заявка отклонена. Номер: ${colony_application_number} 
+👤 Ответственный сотрудник
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+💬 Причина: ${reason}
+🔴 Статус: Отклонена
+    `;
+    } else if (lang === "uzl") {
+      message = `
+❌ Ariza rad etildi. Raqam: ${colony_application_number}
 👤 Mas'ul xodim
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
 💬 Sabab: ${reason}
 🔴 Holat: Rad etilgan
     `;
+    } else { // uz
+      message = `
+❌ Ариза рад этилди. Рақам: ${colony_application_number}
+👤 Мас'ул ходим
+📅 Берилган сана: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
+💬 Сабаб: ${reason}
+🔴 Холат: Рад этилган
+    `;
+    }
 
     // await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     //   chat_id: ADMIN_CHAT_ID,

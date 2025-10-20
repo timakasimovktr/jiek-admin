@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [pendingRows] = await pool.query<Booking[]>(
-      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number 
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number, language  
        FROM bookings 
        WHERE status = 'pending' AND colony = ? 
        ORDER BY created_at ASC LIMIT ?`,
@@ -290,16 +290,50 @@ export async function POST(req: NextRequest) {
 🟢 Holat: Tasdiqlangan
 `;
 
-      const messageBot = `
+      const lang = booking.language || "uz";
+      let messageBot = "";
+      const visitTypeTextRu = newVisitType === "short" ? "1-дневный" : newVisitType === "long" ? "2-дневный" : "3-дневный";
+      const visitTypeTextUzl = newVisitType === "short" ? "1-kunlik" : newVisitType === "long" ? "2-kunlik" : "3-kunlik";
+      const visitTypeTextUz = newVisitType === "short" ? "1-кунлик" : newVisitType === "long" ? "2-кунлик" : "3-кунлик";
+
+      const changedTextRu = newVisitType !== booking.visit_type ? " (изменен на 1-дневный из-за санитарного дня)" : "";
+      const changedTextUzl = newVisitType !== booking.visit_type ? " (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan)" : "";
+      const changedTextUz = newVisitType !== booking.visit_type ? " (санитария куни муносабати билан 1-кунликка ўзгартирилган)" : "";
+
+      if (lang === "ru") {
+        messageBot = `
+🎉 Заявка №${booking.colony_application_number} одобрена!
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Дата прибытия: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+⏲️ Тип${changedTextRu}: ${visitTypeTextRu}
+🏛️ Колония: ${booking.colony}
+🚪 Комната: ${assignedRoomId}
+🟢 Статус: Одобрено
+`;
+      } else if (lang === "uzl") {
+        messageBot = `
 🎉 Ariza №${booking.colony_application_number} tasdiqlandi!
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
 ⌚ Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-⏲️ Tur${newVisitType !== booking.visit_type ? ` (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan): 1-kunlik` : `: ${newVisitType === "long" ? "2-kunlik" : newVisitType === "short" ? "1-kunlik" : "3-kunlik"}`}
+⏲️ Tur${changedTextUzl}: ${visitTypeTextUzl}
 🏛️ Koloniya: ${booking.colony}
 🚪 Xona: ${assignedRoomId}
 🟢 Holat: Tasdiqlangan
 `;
+      } else {
+        messageBot = `
+🎉 Ариза №${booking.colony_application_number} тасдиқланди!
+👤 Аризачи: ${relativeName}
+📅 Берилган сана: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Келиш санаси: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+⏲️ Тур${changedTextUz}: ${visitTypeTextUz}
+🏛️ Колонија: ${booking.colony}
+🚪 Хона: ${assignedRoomId}
+🟢 Ҳолат: Тасдиқланган
+`;
+      }
 
       try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {

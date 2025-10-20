@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     const newVisitType: "short" | "long" | "extra" = days === 1 ? "short" : days === 2 ? "long" : "extra";
 
     const [pendingRows] = await pool.query<Booking[]>(
-      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number, language FROM bookings WHERE status = 'pending' AND colony = ? ORDER BY created_at ASC LIMIT ?`,
       [colony, count]
     );
 
@@ -99,20 +99,66 @@ export async function POST(req: NextRequest) {
       }
       const relativeName = relatives[0]?.full_name || "N/A";
 
-      const messageBot = `
-📝 Ariza №${booking.colony_application_number} kunlari o'zgartirildi!
+      const lang = booking.language || "uz";
+      let messageBot = "";
+      
+//       const messageBot = `
+// 📝 Ariza №${booking.colony_application_number} kunlari o'zgartirildi!
+// 👤 Arizachi: ${relativeName}
+// 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+//         day: "2-digit",
+//         month: "2-digit",
+//         year: "numeric",
+//         timeZone: "Asia/Tashkent",
+//       })}
+// ⏲️ Yangi tur: ${days}-kunlik
+// 🏛️ Koloniya: ${booking.colony}
+// 🟡 Holat: Kutilmoqda
+// `;
+
+      if (lang === "ru") {
+        messageBot = `
+📝 Заявка №${booking.colony_application_number} изменены дни!
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", {
+         day: "2-digit",
+         month: "2-digit",
+         year: "numeric",
+         timeZone: "Europe/Moscow",
+       })}
+⏲️ Новый тип встречи: ${days}-дневный
+🏛️ Колония: ${booking.colony}
+🟡 Статус: В ожидании
+`; } else if (lang === "uzl") {
+        messageBot = `
+📝 Ariza №${booking.colony_application_number} kunlari o'zgartirildi! 
 👤 Arizachi: ${relativeName}
 📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        timeZone: "Asia/Tashkent",
-      })}
+         day: "2-digit",
+         month: "2-digit",
+         year: "numeric",
+         timeZone: "Asia/Tashkent",
+       })}
 ⏲️ Yangi tur: ${days}-kunlik
 🏛️ Koloniya: ${booking.colony}
 🟡 Holat: Kutilmoqda
 `;
-
+      } else { // uz
+        messageBot = `
+📝 Ариза №${booking.colony_application_number} кунлари ўзгартирилди!
+👤 Аризачи: ${relativeName}
+📅 Берилган сана: ${new Date(booking.created_at).toLocaleString("uz-UZ", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          timeZone: "Asia/Tashkent",
+        })}
+⏲️ Янги тур: ${days}-кунлик
+🏛️ Колония: ${booking.colony}
+🟡 Холат: Кутилмоқда
+`;
+      }
+      
       // Отправка пользователю
       if (booking.telegram_chat_id) {
         try {
