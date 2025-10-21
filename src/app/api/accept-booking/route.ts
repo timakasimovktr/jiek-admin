@@ -17,6 +17,8 @@ interface Booking extends RowDataPacket {
   created_at: string;
   relatives: string;
   telegram_chat_id?: string;
+  language?: string;
+  nextAvailableDateStr?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -146,19 +148,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Нет доступных комнат на выбранные даты" }, { status: 400 });
     }
 
-    // Правильный расчет end_datetime (конец последнего дня)
+    // расчет end_datetime 
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + daysToAdd - 1);
     const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
+
+    // const next_available_date this is startDate + 52 days
+    const nextAvailableDate = new Date(startDate);
+    nextAvailableDate.setDate(nextAvailableDate.getDate() + 52);
+    const nextAvailableDateStr = nextAvailableDate.toISOString().slice(0, 10) + " 23:59:59";
 
     const [result] = await pool.query(
       `UPDATE bookings 
        SET status = 'approved', 
            start_datetime = ?, 
            end_datetime = ?,
-           room_id = ?
+           room_id = ?,
+           next_available_date = ?
        WHERE id = ? AND colony = ?`,
-      [startDateStr, endDateStr, assignedRoomId, bookingId, colony]
+      [startDateStr, endDateStr, assignedRoomId, nextAvailableDateStr, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };
