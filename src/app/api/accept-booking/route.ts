@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
+import { addDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { cookies } from "next/headers";
 
 const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
@@ -149,14 +151,14 @@ export async function POST(req: NextRequest) {
     }
 
     // расчет end_datetime 
+    const timeZone = "Asia/Tashkent";
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + daysToAdd - 1);
     const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
 
     // const next_available_date this is startDate + 52 days
-    const nextAvailableDate = new Date(startDate);
-    nextAvailableDate.setDate(nextAvailableDate.getDate() + 52);
-    const nextAvailableDateStr = nextAvailableDate.toISOString().slice(0, 10) + " 23:59:59";
+    const nextAvailable = addDays(new Date(startDate), 52);
+    const nextAvailableStr = formatInTimeZone(nextAvailable, timeZone, "yyyy-MM-dd HH:mm:ss");
 
     const [result] = await pool.query(
       `UPDATE bookings 
@@ -166,7 +168,7 @@ export async function POST(req: NextRequest) {
            room_id = ?,
            next_available_date = ?
        WHERE id = ? AND colony = ?`,
-      [startDateStr, endDateStr, assignedRoomId, nextAvailableDateStr, bookingId, colony]
+      [startDateStr, endDateStr, assignedRoomId, nextAvailableStr, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };

@@ -264,9 +264,12 @@ export async function POST(req: NextRequest) {
       const startStr = formatInTimeZone(start, timeZone, 'yyyy-MM-dd') + " 00:00:00";
       const endStr = formatInTimeZone(addDays(start, duration - 1), timeZone, 'yyyy-MM-dd') + " 23:59:59";
 
+      const nextAvailable = addDays(new Date(startStr), 52);
+      const nextAvailableStr = formatInTimeZone(nextAvailable, timeZone, "yyyy-MM-dd HH:mm:ss");
+
       await pool.query(
-        `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ? WHERE id = ? AND colony = ?`,
-        [startStr, endStr, assignedRoomId, newVisitType, booking.id, colony]
+        `UPDATE bookings SET status = 'approved', start_datetime = ?, end_datetime = ?, room_id = ?, visit_type = ?, next_available_date = ? WHERE id = ? AND colony = ?`,
+        [startStr, endStr, assignedRoomId, newVisitType, nextAvailableStr, booking.id, colony]
       );
 
       assignedCount++;
