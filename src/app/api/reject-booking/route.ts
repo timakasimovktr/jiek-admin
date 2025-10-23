@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
     const booking = rows[0];
 
     const [result] = await pool.query(
-      "UPDATE bookings SET status = 'canceled', rejection_reason = ? WHERE id = ? AND colony = ?",
-      [reason, bookingId, colony]
+      "UPDATE bookings SET status = 'canceled', rejection_reason = ?, next_available_date = ? WHERE id = ? AND colony = ?",
+      [reason, null, bookingId, colony]
     );
 
     const updateResult = result as { affectedRows: number };
