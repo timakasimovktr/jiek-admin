@@ -23,6 +23,7 @@
     id: number;
     created_at: string;
     prisoner_name: string;
+    phone_number: string;
     relatives: Relative[];
     visit_type: "short" | "long" | "extra";
     status: "approved" | "pending" | "rejected" | "canceled";
@@ -514,6 +515,13 @@
                     <TableCell isHeader>
                       <div
                         className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                      >
+                        Телефон
+                      </div>
+                    </TableCell>
+                    <TableCell isHeader>
+                      <div
+                        className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/[0.05]"
                         onClick={() => handleSort("prisoner_name")}
                       >
                         Имя заключенного
@@ -566,6 +574,7 @@
                           : "Нет данных"}
                       </TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white">{order.prisoner_name}</TableCell>
+                      <TableCell className="px-5 py-3 text-black dark:text-white">{order.phone_number}</TableCell>
                       <TableCell className="px-5 py-3">
                         <Badge
                           size="sm"
