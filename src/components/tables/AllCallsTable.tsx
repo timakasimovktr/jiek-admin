@@ -52,7 +52,7 @@
 
     const statusMap: Record<string, string> = {
       approved: "Подтверждено",
-      pending: "В ожидании",
+      pending: "Ожидание",
       rejected: "Отклонено",
       canceled: "Отменено",
     };
@@ -574,7 +574,7 @@
                           : "Нет данных"}
                       </TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white">+{order.phone_number}</TableCell>
-                      <TableCell className="px-5 py-3 text-black dark:text-white">{order.prisoner_name}</TableCell>
+                      <TableCell className="px-5 py-3 text-black dark:text-white text-wrap">{order.prisoner_name}</TableCell>
                       <TableCell className="px-5 py-3">
                         <Badge
                           size="sm"
