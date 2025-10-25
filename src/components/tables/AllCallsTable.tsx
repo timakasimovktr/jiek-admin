@@ -573,8 +573,8 @@
                           ? order.relatives[0].full_name
                           : "Нет данных"}
                       </TableCell>
-                      <TableCell className="px-5 py-3 text-black dark:text-white">{order.prisoner_name}</TableCell>
                       <TableCell className="px-5 py-3 text-black dark:text-white">{order.phone_number}</TableCell>
+                      <TableCell className="px-5 py-3 text-black dark:text-white">{order.prisoner_name}</TableCell>
                       <TableCell className="px-5 py-3">
                         <Badge
                           size="sm"
