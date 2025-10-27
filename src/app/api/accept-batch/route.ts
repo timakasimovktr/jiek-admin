@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       // Convert created_at to zoned time
       const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
       const minDate = addDays(createdDateZoned, 10); // 10 days from creation
-      const maxDate = addDays(minDate, 60); // 60 days from minDate
+      const maxDate = addDays(minDate, 365); // 365 days from minDate
       let start = new Date(minDate);
       let found = false;
       let assignedRoomId: number | null = null;
