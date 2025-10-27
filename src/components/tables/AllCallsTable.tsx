@@ -318,6 +318,9 @@
           new DocxTableRow({
             children: [
               new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Номер заявления", bold: true, font: "Arial", size: 10 })] })],
+              }),
+              new DocxTableCell({
                 children: [new Paragraph({ children: [new TextRun({ text: "Дата подачи", bold: true, font: "Arial", size: 20 })] })],
               }),
               new DocxTableCell({
@@ -329,12 +332,18 @@
               new DocxTableCell({
                 children: [new Paragraph({ children: [new TextRun({ text: "Посетители", bold: true, font: "Arial", size: 20 })] })],
               }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Телефон", bold: true, font: "Arial", size: 20 })] })],
+              }),
             ],
           }),
           ...pending.map(
             (order) =>
               new DocxTableRow({
                 children: [
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: String(order.colony_application_number), font: "Arial", size: 20 })] })],
+                  }),
                   new DocxTableCell({
                     children: [
                       new Paragraph({
@@ -378,6 +387,9 @@
                           spacing: { after: 100 },
                         })
                     ),
+                  }),
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: `+${order.phone_number}`, font: "Arial", size: 20 })] })],
                   }),
                 ],
               })
