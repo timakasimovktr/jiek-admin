@@ -1,12 +1,13 @@
+// app/api/approve-single/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import axios from "axios";
 import { RowDataPacket } from "mysql2/promise";
-import { addDays } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
+import { addDays, isSameDay, parseISO } from "date-fns";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import { cookies } from "next/headers";
 
-const BOT_TOKEN = "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
+const BOT_TOKEN = process.env.BOT_TOKEN || "8373923696:AAHxWLeCqoO0I-ZCgNCgn6yJTi6JJ-wOU3I";
 
 interface Relative {
   full_name: string;
@@ -14,227 +15,285 @@ interface Relative {
 }
 
 interface Booking extends RowDataPacket {
+  id: number;
   visit_type: "short" | "long" | "extra";
-  prisoner_name: string;
   created_at: string;
   relatives: string;
   telegram_chat_id?: string;
+  colony: number;
+  colony_application_number: string;
   language?: string;
-  nextAvailableDateStr?: string;
+}
+
+interface SettingsRow extends RowDataPacket {
+  value: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId, colony_application_number, assignedDate } = await req.json();
+    const { bookingId } = await req.json();
     const cookieStore = await cookies();
     const colony = cookieStore.get("colony")?.value;
 
-    if (!bookingId || !assignedDate) {
-      return NextResponse.json({ error: "bookingId и assignedDate обязательны" }, { status: 400 });
+    if (!bookingId || !colony) {
+      return NextResponse.json({ error: "bookingId va colony cookie talab qilinadi" }, { status: 400 });
     }
 
     const [adminRows] = await pool.query<RowDataPacket[]>(
       `SELECT group_id FROM \`groups\` WHERE id = ?`,
       [colony]
     );
-    
+
     if (!adminRows.length) {
       return NextResponse.json({ error: "groups jadvalida colony yo'q" }, { status: 400 });
     }
 
-    const adminChatId = (adminRows as { group_id: string }[])[0]?.group_id;
+    const adminChatId = adminRows[0].group_id;
 
-    const [rows] = await pool.query<Booking[]>(
-      "SELECT visit_type, prisoner_name, created_at, relatives, telegram_chat_id, language FROM bookings WHERE id = ? AND colony = ?",
+    // Получаем заявку
+    const [bookingRows] = await pool.query<Booking[]>(
+      `SELECT id, visit_type, created_at, relatives, telegram_chat_id, colony, colony_application_number, language  
+       FROM bookings 
+       WHERE id = ? AND colony = ? AND status = 'pending'`,
       [bookingId, colony]
     );
 
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
-    }
-
-    const booking = rows[0];
-    const daysToAdd = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
-
-    // Проверка min date: assignedDate >= created_at + 10 дней
-    const createdDate = new Date(booking.created_at);
-    const minDate = new Date(createdDate);
-    minDate.setDate(minDate.getDate() + 10);
-    minDate.setHours(0, 0, 0, 0);
-    const assigned = new Date(assignedDate);
-    if (assigned < minDate) {
-      return NextResponse.json({ error: "Дата посещения должна быть не ранее 10 дней после создания заявки" }, { status: 400 });
-    }
-
-    const startDate = new Date(assignedDate);
-    startDate.setHours(0, 0, 0, 0);
-    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-
-    // Проверка на санитарные дни
-    let isSanitaryFree = true;
-    for (let d = 0; d < daysToAdd; d++) {
-      const day = new Date(startDate);
-      day.setDate(day.getDate() + d);
-      const dayStr = day.toISOString().slice(0, 10);
-
-      const [sanitaryRows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-        [colony, dayStr]
-      );
-
-      if (sanitaryRows[0].cnt > 0) {
-        isSanitaryFree = false;
-        break;
-      }
-    }
-
-    // ADDED: Проверка дня после end_datetime (если следующий день санитарный, блокируем)
-    if (isSanitaryFree) {
-      const endDay = new Date(startDate);
-      endDay.setDate(endDay.getDate() + daysToAdd - 1);
-      const nextDay = new Date(endDay);
-      nextDay.setDate(nextDay.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().slice(0, 10);
-
-      const [sanitaryNextRows] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as cnt FROM sanitary_days WHERE colony = ? AND date = ?`,
-        [colony, nextDayStr]
-      );
-
-      if (sanitaryNextRows[0].cnt > 0) {
-        isSanitaryFree = false;
-      }
-    }
-
-    if (!isSanitaryFree) {
-      return NextResponse.json({ error: "Выбранные даты пересекаются с санитарными днями" }, { status: 400 });
-    }
-
-    const [settingsRows] = await pool.query<RowDataPacket[]>(`SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`);
-    const rooms = Number(settingsRows[0]?.value) || 10;
-    let assignedRoomId: number | null = null;
-
-    for (let roomId = 1; roomId <= rooms; roomId++) {
-      let canFit = true;
-      for (let d = 0; d < daysToAdd; d++) {
-        const day = new Date(startDate);
-        day.setDate(day.getDate() + d);
-        const dayStart = day.toISOString().slice(0, 10) + " 00:00:00";
-        const dayEnd = day.toISOString().slice(0, 10) + " 23:59:59";
-
-        const [occupiedRows] = await pool.query<RowDataPacket[]>(
-          `SELECT COUNT(*) as cnt FROM bookings 
-           WHERE status = 'approved' 
-           AND room_id = ? 
-           AND colony = ? 
-           AND (
-             (start_datetime <= ? AND end_datetime >= ?) OR 
-             (start_datetime <= ? AND end_datetime >= ?) OR 
-             (start_datetime >= ? AND end_datetime <= ?)
-           )`,
-          [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
-        );
-
-        if (occupiedRows[0].cnt > 0) {
-          canFit = false;
-          break;
-        }
-      }
-      if (canFit) {
-        assignedRoomId = roomId;
-        break;
-      }
-    }
-
-    if (!assignedRoomId) {
-      return NextResponse.json({ error: "Нет доступных комнат на выбранные даты" }, { status: 400 });
-    }
-
-    // расчет end_datetime 
-    const timeZone = "Asia/Tashkent";
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToAdd - 1);
-    const endDateStr = endDate.toISOString().slice(0, 10) + " 23:59:59";
-
-    // const next_available_date this is startDate + 52 days
-    const nextAvailable = addDays(new Date(startDate), 52);
-    const nextAvailableStr = formatInTimeZone(nextAvailable, timeZone, "yyyy-MM-dd HH:mm:ss");
-
-    const [result] = await pool.query(
-      `UPDATE bookings 
-       SET status = 'approved', 
-           start_datetime = ?, 
-           end_datetime = ?,
-           room_id = ?,
-           next_available_date = ?
-       WHERE id = ? AND colony = ?`,
-      [startDateStr, endDateStr, assignedRoomId, nextAvailableStr, bookingId, colony]
-    );
-
-    const updateResult = result as { affectedRows: number };
-    if (updateResult.affectedRows === 0) {
+    if (bookingRows.length === 0) {
       return NextResponse.json({ error: "Заявка не найдена или уже обработана" }, { status: 404 });
     }
 
-    const relatives: Relative[] = JSON.parse(booking.relatives);
-    const relativeName = relatives[0]?.full_name || "Н/Д";
+    const booking = bookingRows[0];
+    let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
+    let newVisitType: "short" | "long" | "extra" = booking.visit_type;
+    const timeZone = "Asia/Tashkent";
 
-    const messageGroup = `
-    🎉 Ariza tasdiqlandi. Raqam: ${colony_application_number} 
-👤 Arizachi: ${relativeName}
-📅 Taqdim etilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Kelish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-🏛️ Koloniya: ${colony}
-🚪 Xona: ${assignedRoomId}
-🟢 Holat: Tasdiqlandi
-    `;
+    const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
+    const minDate = addDays(createdDateZoned, 10);
+    const maxDate = addDays(minDate, 365);
+    let start = new Date(minDate);
+    let found = false;
+    let assignedRoomId: number | null = null;
 
-    const lang = booking.language || "uz";
-    let messageBot = "";
-    const visitTypeTextRu =  booking.visit_type === "long" ? "2-дневный" : booking.visit_type === "short" ? "1-дневный" : "3-дневный"; 
-    const visitTypeTextUzl =  booking.visit_type === "long" ? "2-kunlik" : booking.visit_type === "short" ? "1-kunlik" : "3-kunlik";
-    const visitTypeTextUz =  booking.visit_type === "long" ? "2-кунлик" : booking.visit_type === "short" ? "1-кунлик" : "3-кунлик";
+    // Получаем количество комнат
+    const [settingsRows] = await pool.query<SettingsRow[]>(
+      `SELECT value FROM settings WHERE \`key\` = 'rooms_count${colony}'`
+    );
 
-    if (lang === "ru") {  
-      messageBot = `
-🎉 Заявка №${colony_application_number} одобрена!
-👤 Заявитель: ${relativeName}
-📅 Дата подачи: ${new Date(booking.created_at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" })}
-⌚ Дата начала: ${startDate.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" })}
-⏲️ Тип визита: ${visitTypeTextRu}
-🏛️ Колония: ${colony}
-🚪 Комната: ${assignedRoomId}
-🟢 Статус: Одобрена
-      `;
-    } else if (lang === "uzl") {
-      messageBot = `
-🎉 Ariza №${colony_application_number} tasdiqlandi!
-👤 Arizachi: ${relativeName}
-📅 Berilgan sana: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Boshlanish sanasi: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⏲️ Turi: ${visitTypeTextUzl}
-🏛️ Koloniya: ${colony}
-🚪 Xona: ${assignedRoomId}
-🟢 Holat: Tasdiqlandi
-      `;
-    } else { // uz
-      messageBot = `
-🎉 Ariza №${colony_application_number} тасдиқланди!
-👤 Аризачи: ${relativeName}
-📅 Берилган сана: ${new Date(booking.created_at).toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⌚ Бошланиш санаси: ${startDate.toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Tashkent" })}
-⏲️ Тури: ${visitTypeTextUz}
-🏛️ Колония: ${colony}
-🚪 Хона: ${assignedRoomId}
-🟢 Холат: Тасдиқланди
-      `;
+    if (!settingsRows.length) {
+      return NextResponse.json({ error: `rooms_count${colony} sozlama topilmadi` }, { status: 400 });
     }
 
+    const rooms = Number(settingsRows[0].value) || 10;
+
+    // Получаем санитарные дни
+    const [sanitaryDays] = await pool.query<RowDataPacket[]>(
+      `SELECT date FROM sanitary_days WHERE colony = ? AND date >= ? AND date <= ? ORDER BY date`,
+      [
+        colony,
+        formatInTimeZone(minDate, timeZone, 'yyyy-MM-dd'),
+        formatInTimeZone(maxDate, timeZone, 'yyyy-MM-dd'),
+      ]
+    );
+
+    const sanitaryDates = sanitaryDays
+      .map(row => {
+        let dateStr = row.date;
+        if (dateStr instanceof Date) {
+          dateStr = formatInTimeZone(dateStr, timeZone, 'yyyy-MM-dd');
+        } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
+          dateStr = dateStr.slice(0, 10);
+        }
+        try {
+          const parsed = toZonedTime(parseISO(dateStr), timeZone);
+          return isNaN(parsed.getTime()) ? null : parsed;
+        } catch {
+          return null;
+        }
+      })
+      .filter((d): d is Date => d !== null);
+
+    console.log(`Sanitariya kunlari:`, sanitaryDates.map(d => formatInTimeZone(d, timeZone, 'yyyy-MM-dd')));
+
+    // Поиск свободной даты и комнаты
+    for (let tries = 0; tries < 60 && !found && start <= maxDate; tries++) {
+      let isValidDate = true;
+      let adjustedDuration = duration;
+      newVisitType = booking.visit_type;
+
+      // Проверка на санитарные дни и день перед ними
+      for (let d = 0; d < adjustedDuration; d++) {
+        const day = addDays(start, d);
+        if (sanitaryDates.some(s => isSameDay(s, day) || isSameDay(addDays(s, -1), day))) {
+          isValidDate = false;
+          break;
+        }
+      }
+
+      // Если конфликт — укорачиваем до 1 дня
+      if (!isValidDate && duration > 1) {
+        console.log(`Ariza ${booking.id}: Sanitariya bilan to'qnashuv → 1 kunga qisqartirildi`);
+        adjustedDuration = 1;
+        newVisitType = "short";
+        isValidDate = true;
+
+        for (let d = 0; d < adjustedDuration; d++) {
+          const day = addDays(start, d);
+          if (sanitaryDates.some(s => isSameDay(s, day) || isSameDay(addDays(s, -1), day))) {
+            isValidDate = false;
+            break;
+          }
+        }
+      }
+
+      // Если всё ещё конфликт — ищем следующий день
+      if (!isValidDate) {
+        let nextStart = addDays(start, 1);
+        let conflict = true;
+        while (conflict && nextStart <= maxDate) {
+          conflict = false;
+          for (let d = 0; d < adjustedDuration; d++) {
+            const day = addDays(nextStart, d);
+            if (sanitaryDates.some(s => isSameDay(s, day) || isSameDay(addDays(s, -1), day))) {
+              conflict = true;
+              break;
+            }
+          }
+          if (conflict) nextStart = addDays(nextStart, 1);
+        }
+        if (nextStart > maxDate) break;
+        start = nextStart;
+        continue;
+      }
+
+      // Проверка комнат
+      for (let roomId = 1; roomId <= rooms; roomId++) {
+        let canFit = true;
+        for (let d = 0; d < adjustedDuration; d++) {
+          const day = addDays(start, d);
+          const dayStart = formatInTimeZone(day, timeZone, 'yyyy-MM-dd 00:00:00');
+          const dayEnd = formatInTimeZone(day, timeZone, 'yyyy-MM-dd 23:59:59');
+
+          const [occupied] = await pool.query<RowDataPacket[]>(
+            `SELECT COUNT(*) as cnt FROM bookings 
+             WHERE status = 'approved' AND room_id = ? AND colony = ?
+             AND (
+               (start_datetime <= ? AND end_datetime >= ?) OR
+               (start_datetime <= ? AND end_datetime >= ?) OR
+               (start_datetime >= ? AND end_datetime <= ?)
+             )`,
+            [roomId, colony, dayEnd, dayStart, dayStart, dayEnd, dayStart, dayEnd]
+          );
+
+          if (occupied[0].cnt > 0) {
+            canFit = false;
+            break;
+          }
+        }
+
+        if (canFit) {
+          found = true;
+          assignedRoomId = roomId;
+          duration = adjustedDuration;
+          break;
+        }
+      }
+
+      if (!found) {
+        start = addDays(start, 1);
+      }
+    }
+
+    if (!found || assignedRoomId === null) {
+      return NextResponse.json({ error: "60 кун ичида бўш хона топилмади" }, { status: 400 });
+    }
+
+    // Обновление заявки
+    const startStr = formatInTimeZone(start, timeZone, 'yyyy-MM-dd 00:00:00');
+    const endStr = formatInTimeZone(addDays(start, duration - 1), timeZone, 'yyyy-MM-dd 23:59:59');
+    const nextAvailable = addDays(new Date(startStr), 52);
+    const nextAvailableStr = formatInTimeZone(nextAvailable, timeZone, "yyyy-MM-dd HH:mm:ss");
+
+    await pool.query(
+      `UPDATE bookings 
+       SET status = 'approved', 
+           start_datetime = ?, 
+           end_datetime = ?, 
+           room_id = ?, 
+           visit_type = ?, 
+           next_available_date = ? 
+       WHERE id = ? AND colony = ?`,
+      [startStr, endStr, assignedRoomId, newVisitType, nextAvailableStr, booking.id, colony]
+    );
+
+    // Сообщения
+    let relatives: Relative[] = [];
+    try {
+      relatives = JSON.parse(booking.relatives);
+    } catch {}
+    const relativeName = relatives[0]?.full_name || "N/A";
+
+    const messageGroup = `
+Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
+Arizachi: ${relativeName}
+Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+Koloniya: ${booking.colony}  
+Xona: ${assignedRoomId}
+Holat: Tasdiqlangan
+`;
+
+    const lang = booking.language || "uz";
+    const visitTypeTextRu = newVisitType === "short" ? "1-дневный" : newVisitType === "long" ? "2-дневный" : "3-дневный";
+    const visitTypeTextUzl = newVisitType === "short" ? "1-kunlik" : newVisitType === "long" ? "2-kunlik" : "3-kunlik";
+    const visitTypeTextUz = newVisitType === "short" ? "1-кунлик" : newVisitType === "long" ? "2-кунлик" : "3-кунлик";
+
+    const changedTextRu = newVisitType !== booking.visit_type ? " (санитария куни туфайли 1 кунликка ўзгартирилди)" : "";
+    const changedTextUzl = newVisitType !== booking.visit_type ? " (sanitariya kuni munosabati bilan 1-kunlikka o'zgartirilgan)" : "";
+    const changedTextUz = newVisitType !== booking.visit_type ? " (санитария куни муносабати билан 1 кунликка ўзгартирилган)" : "";
+
+    let messageBot = "";
+    if (lang === "ru") {
+      messageBot = `
+Заявка №${booking.colony_application_number} одобрена!
+Заявитель: ${relativeName}
+Дата подачи: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+Дата прибытия: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+Тип${changedTextRu}: ${visitTypeTextRu}
+Колония: ${booking.colony}
+Комната: ${assignedRoomId}
+Статус: Одобрено
+`;
+    } else if (lang === "uzl") {
+      messageBot = `
+Ariza №${booking.colony_application_number} tasdiqlandi!
+Arizachi: ${relativeName}
+Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+Tur${changedTextUzl}: ${visitTypeTextUzl}
+Koloniya: ${booking.colony}
+Xona: ${assignedRoomId}
+Holat: Tasdiqlangan
+`;
+    } else {
+      messageBot = `
+Ариза №${booking.colony_application_number} тасдиқланди!
+Аризачи: ${relativeName}
+Берилган сана: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+Келиш санаси: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+Тур${changedTextUz}: ${visitTypeTextUz}
+Колонија: ${booking.colony}
+Хона: ${assignedRoomId}
+Ҳолат: Тасдиқланган
+`;
+    }
+
+    // Отправка в группу
     await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       chat_id: adminChatId,
       text: messageGroup,
     });
 
+    // Отправка пользователю
     if (booking.telegram_chat_id) {
       await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         chat_id: booking.telegram_chat_id,
@@ -242,9 +301,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      assigned: {
+        bookingId: booking.id,
+        startDate: startStr,
+        endDate: endStr,
+        roomId: assignedRoomId,
+        visitType: newVisitType,
+      },
+    });
   } catch (err) {
-    console.error("Ошибка БД:", err);
-    return NextResponse.json({ error: "Ошибка БД" }, { status: 500 });
+    console.error("DB xatosi:", err);
+    return NextResponse.json({ error: "DB xatosi" }, { status: 500 });
   }
 }
