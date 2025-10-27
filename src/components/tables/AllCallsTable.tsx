@@ -235,6 +235,16 @@
                   new DocxTableRow({
                     children: [
                       new DocxTableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: "Номер заявления", bold: true, size: 20, font: "Arial" })] })],
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: String(order.colony_application_number), size: 20, font: "Arial" })] })],
+                      }),
+                    ],
+                  }),
+                  new DocxTableRow({
+                    children: [
+                      new DocxTableCell({
                         children: [new Paragraph({ children: [new TextRun({ text: "Дата подачи", bold: true, size: 20, font: "Arial" })] })],
                       }),
                       new DocxTableCell({
@@ -287,6 +297,16 @@
                               spacing: { after: 100 },
                             })
                         ),
+                      }),
+                    ],
+                  }),
+                  new DocxTableRow({
+                    children: [
+                      new DocxTableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: "Телефон", bold: true, size: 20, font: "Arial" })] })],
+                      }),
+                      new DocxTableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: `+${order.phone_number}`, font: "Arial", size: 20 })] })],
                       }),
                     ],
                   }),
@@ -375,11 +395,11 @@
                   }),
                   new DocxTableCell({
                     children: order.relatives.map(
-                      (r, i) =>
+                      (r) =>
                         new Paragraph({
                           children: [
                             new TextRun({
-                              text: `${i + 1}) ${r.full_name}`,
+                              text: `${r.full_name}`,
                               font: "Arial",
                               size: 20,
                             }),
