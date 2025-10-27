@@ -340,7 +340,7 @@
                       new Paragraph({
                         children: [
                           new TextRun({
-                            text: new Date(order.created_at).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" }),
+                            text: new Date(order.created_at).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent", day: "2-digit", month: "2-digit", year: "numeric" }),
                             font: "Arial",
                             size: 20,
                           }),
@@ -370,7 +370,7 @@
                         new Paragraph({
                           children: [
                             new TextRun({
-                              text: `${i + 1}) ${r.full_name}, Паспорт: ${r.passport}`,
+                              text: `${i + 1}) ${r.full_name}`,
                               font: "Arial",
                               size: 20,
                             }),
