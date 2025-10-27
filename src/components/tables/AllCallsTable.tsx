@@ -281,9 +281,9 @@
                       }),
                       new DocxTableCell({
                         children: order.relatives.map(
-                          (r, i) =>
+                          (r) =>
                             new Paragraph({
-                              children: [new TextRun({ text: `${i + 1}) ${r.full_name}`, size: 20, font: "Arial" })],
+                              children: [new TextRun({ text: `${r.full_name}`, size: 20, font: "Arial" })],
                               spacing: { after: 100 },
                             })
                         ),
