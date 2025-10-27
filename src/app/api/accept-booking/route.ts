@@ -254,36 +254,36 @@ Holat: Tasdiqlangan
     let messageBot = "";
     if (lang === "ru") {
       messageBot = `
-Заявка №${booking.colony_application_number} одобрена!
-Заявитель: ${relativeName}
-Дата подачи: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
-Дата прибытия: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-Тип${changedTextRu}: ${visitTypeTextRu}
-Колония: ${booking.colony}
-Комната: ${assignedRoomId}
-Статус: Одобрено
+🎉 Заявка №${booking.colony_application_number} одобрена!
+👤 Заявитель: ${relativeName}
+📅 Дата подачи: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Дата прибытия: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+⏲️  Тип${changedTextRu}: ${visitTypeTextRu}
+🏛️ Колония: ${booking.colony}
+🚪 Комната: ${assignedRoomId}
+🟢 Статус: Одобрено
 `;
     } else if (lang === "uzl") {
       messageBot = `
-Ariza №${booking.colony_application_number} tasdiqlandi!
-Arizachi: ${relativeName}
-Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
-Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-Tur${changedTextUzl}: ${visitTypeTextUzl}
-Koloniya: ${booking.colony}
-Xona: ${assignedRoomId}
-Holat: Tasdiqlangan
+🎉 Ariza №${booking.colony_application_number} tasdiqlandi!
+👤 Arizachi: ${relativeName}
+📅 Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+⏲️ Tur${changedTextUzl}: ${visitTypeTextUzl}
+🏛️ Koloniya: ${booking.colony}
+🚪 Xona: ${assignedRoomId}
+🟢 Holat: Tasdiqlangan
 `;
     } else {
       messageBot = `
-Ариза №${booking.colony_application_number} тасдиқланди!
-Аризачи: ${relativeName}
-Берилган сана: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
-Келиш санаси: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-Тур${changedTextUz}: ${visitTypeTextUz}
-Колонија: ${booking.colony}
-Хона: ${assignedRoomId}
-Ҳолат: Тасдиқланган
+🎉 Ариза №${booking.colony_application_number} тасдиқланди!
+👤 Аризачи: ${relativeName}
+📅 Берилган сана: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Келиш санаси: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+⏲️ Тур${changedTextUz}: ${visitTypeTextUz}
+🏛️ Колонија: ${booking.colony}
+🚪 Хона: ${assignedRoomId}
+🟢 Ҳолат: Тасдиқланган
 `;
     }
 
