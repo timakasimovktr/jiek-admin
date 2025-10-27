@@ -42,9 +42,9 @@ const AppHeader: React.FC = () => {
     }
   }, [cookies, router, setCookie]);
 
-  useEffect(() => {
-    handleCheck();
-  }, [cookies, handleCheck]);
+  // useEffect(() => {
+  //   handleCheck();
+  // }, [cookies, handleCheck]);
 
   
 

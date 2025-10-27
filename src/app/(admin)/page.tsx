@@ -7,7 +7,7 @@ import React from "react";
 // import RecentOrders from "@/components/ecommerce/RecentOrders";
 // import DemographicCard from "@/components/ecommerce/DemographicCard";
 import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+// import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import AllCallsTable from "@/components/tables/AllCallsTable";
 
 export const metadata: Metadata = {
@@ -25,9 +25,9 @@ export default function Ecommerce() {
       </div>
 
       <div className="col-span-12 xl:col-span-12">
-        <PageBreadcrumb pageTitle="Таблица с данными по всем заявкам" />
+        {/* <PageBreadcrumb pageTitle="Таблица с данными по всем заявкам" /> */}
         <div className="space-y-6">
-          <ComponentCard title="Таблица с данными по всем заявкам">
+          <ComponentCard>
             <AllCallsTable />
           </ComponentCard>
         </div>

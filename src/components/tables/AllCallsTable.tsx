@@ -48,13 +48,19 @@
     const [changeRoomsCount, setChangeRoomsCount] = useState<number>(1);
     const [roomsCount, setRoomsCount] = useState<number>(0);
     const router = useRouter();
-    
 
     const statusMap: Record<string, string> = {
       approved: "Подтверждено",
       pending: "Ожидание",
       rejected: "Отклонено",
       canceled: "Отменено",
+    };
+
+    const statusOrder: Record<string, number> = {
+      pending: 1,
+      approved: 2,
+      rejected: 3,
+      canceled: 4,
     };
 
     useEffect(() => {
@@ -100,27 +106,19 @@
       }
     };
 
-  const saveRoomsCount = async () => {
-    if (roomsCount <= 0 || roomsCount > 50) { // Добавьте разумный max, напр. 50
-      alert("Количество комнат должно быть от 1 до 50");
-      return;
-    }
-    try {
-      await axios.post("/api/rooms-count", { count: roomsCount });
-      console.log("Saved rooms count:", roomsCount); // Лог
-      fetchData();
-    } catch (err) {
-      console.error("Error saving rooms count:", err);
-      alert("Ошибка сохранения");
-    }
-  };
-
-
-    const statusOrder: Record<string, number> = {
-      pending: 1,
-      approved: 2,
-      rejected: 3,
-      canceled: 4,
+    const saveRoomsCount = async () => {
+      if (roomsCount <= 0 || roomsCount > 50) { // Добавьте разумный max, напр. 50
+        alert("Количество комнат должно быть от 1 до 50");
+        return;
+      }
+      try {
+        await axios.post("/api/rooms-count", { count: roomsCount });
+        console.log("Saved rooms count:", roomsCount); // Лог
+        fetchData();
+      } catch (err) {
+        console.error("Error saving rooms count:", err);
+        alert("Ошибка сохранения");
+      }
     };
 
     const handleSort = (field: keyof Order) => {
@@ -322,13 +320,17 @@
       });
     };
 
-    const handlePrintBatch = async () => {
+    const handlePrintBatch = async (accepted: boolean, pendingStatus: string) => {
       if (roomsCount <= 0) return;
+      
 
-      const pending = [...tableData]
-        .filter((o) => o.status === "pending")
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-        .slice(0, roomsCount);
+      let pending = [...tableData]
+        .filter((o) => o.status === pendingStatus)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      if( !accepted ) {
+        pending = pending.slice(0, roomsCount);
+      } 
 
       if (pending.length === 0) return;
 
@@ -472,7 +474,7 @@
 
     return (
       <>
-        <div className="flex justify-between mb-6">
+        <div className="flex items-center justify-between mb-3">
           <div className="text-black dark:text-white flex">
             <div className="flex gap-2 align-middle justify-center">
               <input
@@ -492,8 +494,18 @@
               </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <input
+          <div className="flex gap-2 h-[42px]">
+            <Button size="xs" variant="yellow" onClick={() => handlePrintBatch(false, "pending")}>
+              Печать всех не принятых заявлений
+            </Button>
+            <Button size="xs" variant="primary" onClick={() => handlePrintBatch(true, "accepted")}>
+              Печать всех принятых заявлений
+            </Button>
+          </div>
+        </div>
+        <div className="flex justify-between mb-3">
+          <div className="text-black dark:text-white gap-2 flex">
+             <input
               type="number"
               min="1"
               max="50" 
@@ -506,10 +518,12 @@
             <Button size="xs" variant="outline" onClick={fetchRoomsCount}>
               Обновить количество комнат
             </Button>
-            <Button size="xs" variant="outline" onClick={handlePrintBatch}>
-              Печать заявлений
+          </div>
+          <div className="flex gap-2">
+            <Button size="xs" variant="outline" onClick={() => handlePrintBatch(false, "pending")}>
+              Печать первых {roomsCount} не принятых заявлений
             </Button>
-            <Button size="xs" variant="green" onClick={handleAcceptBatch}>
+            <Button size="xs" className="px-10" variant="green" onClick={handleAcceptBatch}>
               Принять заявления
             </Button>
           </div>
