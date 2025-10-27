@@ -233,13 +233,13 @@ export async function POST(req: NextRequest) {
     const relativeName = relatives[0]?.full_name || "N/A";
 
     const messageGroup = `
-Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
-Arizachi: ${relativeName}
-Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
-Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-Koloniya: ${booking.colony}  
-Xona: ${assignedRoomId}
-Holat: Tasdiqlangan
+🎉 Ariza tasdiqlandi. Raqam: ${booking.colony_application_number}
+👤 Arizachi: ${relativeName}
+📅 Berilgan sana: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
+⌚ Kelish sanasi: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
+🏛️ Koloniya: ${booking.colony}  
+🚪 Xona: ${assignedRoomId}
+🟢 Holat: Tasdiqlangan
 `;
 
     const lang = booking.language || "uz";
@@ -258,7 +258,7 @@ Holat: Tasdiqlangan
 👤 Заявитель: ${relativeName}
 📅 Дата подачи: ${formatInTimeZone(new Date(booking.created_at), timeZone, 'dd.MM.yyyy')}
 ⌚ Дата прибытия: ${formatInTimeZone(start, timeZone, 'dd.MM.yyyy')}
-⏲️  Тип${changedTextRu}: ${visitTypeTextRu}
+⏲️ Тип${changedTextRu}: ${visitTypeTextRu}
 🏛️ Колония: ${booking.colony}
 🚪 Комната: ${assignedRoomId}
 🟢 Статус: Одобрено
