@@ -342,7 +342,7 @@
                 children: [new Paragraph({ children: [new TextRun({ text: "Номер заявления", bold: true, font: "Arial", size: 10 })] })],
               }),
               new DocxTableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "Дата подачи", bold: true, font: "Arial", size: 20 })] })],
+                children: [new Paragraph({ children: [new TextRun({ text: `${pendingStatus == "approved" ? "Дата принятия" : "Дата подачи"}`, bold: true, font: "Arial", size: 20 })] })],
               }),
               new DocxTableCell({
                 children: [new Paragraph({ children: [new TextRun({ text: "Заключенный", bold: true, font: "Arial", size: 20 })] })],
@@ -370,7 +370,7 @@
                       new Paragraph({
                         children: [
                           new TextRun({
-                            text: new Date(order.created_at).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent", day: "2-digit", month: "2-digit", year: "numeric" }),
+                            text: new Date(pendingStatus === "approved" ? (order.start_datetime ?? order.created_at) : order.created_at).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent", day: "2-digit", month: "2-digit", year: "numeric" }),
                             font: "Arial",
                             size: 20,
                           }),
