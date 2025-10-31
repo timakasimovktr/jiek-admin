@@ -328,6 +328,7 @@
         .filter((o) => o.status === pendingStatus)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
+      console.log(pending);  
       if( !accepted ) {
         pending = pending.slice(0, roomsCount);
       } 
