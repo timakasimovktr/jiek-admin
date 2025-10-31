@@ -325,7 +325,7 @@
 
       let pending = [...tableData]
         .filter((o) => o.status === pendingStatus)
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        .sort((a, b) => new Date(pendingStatus === "approved" ? (a.start_datetime ?? a.created_at) : a.created_at).getTime() - new Date(pendingStatus === "approved" ? (b.start_datetime ?? b.created_at) : b.created_at).getTime());
       
       if( !accepted ) {
         pending = pending.slice(0, roomsCount);
