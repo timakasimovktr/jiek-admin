@@ -322,13 +322,11 @@
 
     const handlePrintBatch = async (accepted: boolean, pendingStatus: string) => {
       if (roomsCount <= 0) return;
-      debugger;
 
       let pending = [...tableData]
         .filter((o) => o.status === pendingStatus)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
-      console.log(pending);  
       if( !accepted ) {
         pending = pending.slice(0, roomsCount);
       } 
@@ -499,7 +497,7 @@
             <Button size="xs" variant="yellow" onClick={() => handlePrintBatch(false, "pending")}>
               Печать всех не принятых заявлений
             </Button>
-            <Button size="xs" variant="primary" onClick={() => handlePrintBatch(true, "accepted")}>
+            <Button size="xs" variant="primary" onClick={() => handlePrintBatch(true, "approved")}>
               Печать всех принятых заявлений
             </Button>
           </div>
