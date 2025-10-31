@@ -286,51 +286,58 @@ export default function AllCallsTable() {
   };
 
   const handlePrintApprovedByDate = () => {
-    if (!approvedDate) {
-      alert("Выберите дату!");
-      return;
-    }
+  if (!approvedDate) {
+    alert("Выберите дату!");
+    return;
+  }
 
-    let filtered = tableData.filter(
-      (o) =>
-        o.status === "approved" &&
-        o.start_datetime &&
-        new Date(o.start_datetime).toISOString().split("T")[0] === approvedDate
+  // Приводим approvedDate к началу дня в Tashkent
+  const selectedDate = new Date(approvedDate);
+  selectedDate.setHours(0, 0, 0, 0);
+
+  const filtered = tableData.filter((o) => {
+    if (o.status !== "approved" || !o.start_datetime) return false;
+
+    // Парсим start_datetime как дату в Tashkent
+    const startDate = new Date(o.start_datetime);
+    const startDateTashkent = new Date(
+      startDate.toLocaleString("en-US", { timeZone: "Asia/Tashkent" })
     );
+    startDateTashkent.setHours(0, 0, 0, 0);
 
-    if (filtered.length === 0) {
-      alert("Нет подтвержденных заявлений на выбранную дату!");
-      return;
-    }
+    return startDateTashkent.getTime() === selectedDate.getTime();
+  });
 
-    filtered = filtered.sort((a, b) => {
-      const dateA = new Date(a.start_datetime ?? a.created_at).getTime();
-      const dateB = new Date(b.start_datetime ?? b.created_at).getTime();
+  if (filtered.length === 0) {
+    alert("Нет подтвержденных заявлений на выбранную дату!");
+    return;
+  }
 
-      if (dateA !== dateB) return dateA - dateB;
+  // Сортировка по дате и номеру заявления
+  const sorted = filtered.sort((a, b) => {
+    const dateA = new Date(a.start_datetime!).getTime();
+    const dateB = new Date(b.start_datetime!).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    return Number(a.colony_application_number ?? 0) - Number(b.colony_application_number ?? 0);
+  });
 
-      const numA = Number(a.colony_application_number ?? 0);
-      const numB = Number(b.colony_application_number ?? 0);
-      return numA - numB;
-    });
+  const headers = ["№", "Заключенный", "Тип", "Посетители", "Телефон"];
 
-    const headers = ["№", "Заключенный", "Тип", "Посетители", "Телефон"];
+  const ws_data = [
+    [`Подтвержденные заявки на ${new Date(approvedDate).toLocaleDateString("ru-RU")}`],
+    [],
+    headers,
+    ...sorted.map((order) => [
+      String(order.colony_application_number ?? "-"),
+      order.prisoner_name,
+      getVisitTypeText(order.visit_type),
+      order.relatives.map((r) => r.full_name).join("\n"),
+      `+${order.phone_number}`,
+    ]),
+  ];
 
-    const ws_data = [
-      [`Подтвержденные заявки на ${new Date(approvedDate).toLocaleDateString("ru-RU")}`],
-      [],
-      headers,
-      ...filtered.map((order) => [
-        String(order.colony_application_number ?? "-"),
-        order.prisoner_name,
-        getVisitTypeText(order.visit_type),
-        order.relatives.map((r) => r.full_name).join("\n"),
-        `+${order.phone_number}`,
-      ]),
-    ];
-
-    createExcel(ws_data, `approved_bookings_${approvedDate}.xlsx`, "Approved");
-  };
+  createExcel(ws_data, `approved_bookings_${approvedDate}.xlsx`, "Approved");
+};
 
   const handleAcceptBatch = async () => {
     if (roomsCount <= 0) return;
