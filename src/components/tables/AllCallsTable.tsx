@@ -47,6 +47,7 @@
     const [approvedDays, setApprovedDays] = useState<number>(1);
     const [changeRoomsCount, setChangeRoomsCount] = useState<number>(1);
     const [roomsCount, setRoomsCount] = useState<number>(0);
+    const [approvedDate, setApprovedDate] = useState("");
     const router = useRouter();
 
     const statusMap: Record<string, string> = {
@@ -326,7 +327,6 @@
     let pending = [...tableData]
       .filter((o) => o.status === pendingStatus)
       .sort((a, b) => {
-        // Определяем дату для каждого элемента
         const dateA = new Date(
           pendingStatus === "approved" ? (a.start_datetime ?? a.created_at) : a.created_at
         ).getTime();
@@ -334,10 +334,8 @@
           pendingStatus === "approved" ? (b.start_datetime ?? b.created_at) : b.created_at
         ).getTime();
 
-        // Если даты разные — сортируем по дате
         if (dateA !== dateB) return dateA - dateB;
 
-        // Если даты одинаковые — сортируем по номеру
         const numA = Number(a.colony_application_number ?? 0);
         const numB = Number(b.colony_application_number ?? 0);
         return numA - numB;
@@ -453,6 +451,106 @@
       });
     };
 
+    const handlePrintApprovedByDate = () => {
+    if (!approvedDate) {
+      alert("Выберите дату!");
+      return;
+    }
+
+    const filtered = tableData.filter(
+      (o) =>
+        o.status === "approved" &&
+        o.start_datetime &&
+        new Date(o.start_datetime).toISOString().split("T")[0] === approvedDate
+    );
+
+    if (filtered.length === 0) {
+      alert("Нет подтвержденных заявлений на выбранную дату!");
+      return;
+    }
+
+    const table = new DocxTable({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new DocxTableRow({
+            children: [
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "№", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Заключенный", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Тип", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Посетители", bold: true, font: "Arial", size: 20 })] })],
+              }),
+              new DocxTableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "Телефон", bold: true, font: "Arial", size: 20 })] })],
+              }),
+            ],
+          }),
+          ...filtered.map(
+            (order) =>
+              new DocxTableRow({
+                children: [
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: String(order.colony_application_number ?? "-"), font: "Arial", size: 20 })] })],
+                  }),
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: order.prisoner_name, font: "Arial", size: 20 })] })],
+                  }),
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: order.visit_type === "short" ? "1 день" : order.visit_type === "long" ? "2 дня" : "3 дня", font: "Arial", size: 20 })] })],
+                  }),
+                  new DocxTableCell({
+                    children: order.relatives.map(
+                      (r) =>
+                        new Paragraph({
+                          children: [new TextRun({ text: r.full_name, font: "Arial", size: 20 })],
+                          spacing: { after: 100 },
+                        })
+                    ),
+                  }),
+                  new DocxTableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: `+${order.phone_number}`, font: "Arial", size: 20 })] })],
+                  }),
+                ],
+              })
+          ),
+        ],
+      });
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: { page: { size: { orientation: PageOrientation.LANDSCAPE } } },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Подтвержденные заявки на ${approvedDate}`,
+                    bold: true,
+                    size: 28,
+                    font: "Arial",
+                  }),
+                ],
+                spacing: { after: 300 },
+                alignment: "center",
+              }),
+              table,
+            ],
+          },
+        ],
+      });
+
+      Packer.toBlob(doc).then((blob) => {
+        saveAs(blob, `approved_bookings_${approvedDate}.docx`);
+      });
+    };
+
+
     const handleAcceptBatch = async () => {
       if (roomsCount <= 0) return;
       if (!confirm("Вы уверены, что хотите принять выбранные заявления?")) return;
@@ -536,6 +634,15 @@
             </Button>
           </div>
           <div className="flex gap-2">
+            <input
+              type="date"
+              className="border p-2 rounded-xl text-black dark:text-white"
+              value={approvedDate}
+              onChange={(e) => setApprovedDate(e.target.value)}
+            />
+            <Button size="xs" variant="outline" onClick={handlePrintApprovedByDate}>
+              Печать подтвержденных за день
+            </Button>
             <Button size="xs" variant="outline" onClick={() => handlePrintBatch(false, "pending")}>
               Печать первых {roomsCount} не принятых заявлений
             </Button>
