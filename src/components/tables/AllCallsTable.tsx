@@ -530,7 +530,7 @@
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `Подтвержденные заявки на ${approvedDate}`,
+                    text: `Подтвержденные заявки на ${new Date(approvedDate).toLocaleDateString()}`,
                     bold: true,
                     size: 28,
                     font: "Arial",
@@ -636,7 +636,7 @@
           <div className="flex gap-2">
             <input
               type="date"
-              className="border p-2 rounded-xl text-black dark:text-white"
+              className="border p-2 rounded-md text-black dark:text-white"
               value={approvedDate}
               onChange={(e) => setApprovedDate(e.target.value)}
             />
