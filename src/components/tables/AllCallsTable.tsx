@@ -322,7 +322,7 @@
 
     const handlePrintBatch = async (accepted: boolean, pendingStatus: string) => {
       if (roomsCount <= 0) return;
-      
+      debugger;
 
       let pending = [...tableData]
         .filter((o) => o.status === pendingStatus)
