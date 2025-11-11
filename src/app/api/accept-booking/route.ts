@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
     let newVisitType: "short" | "long" | "extra" = booking.visit_type;
     const timeZone = "Asia/Tashkent";
 
-    const createdDateZoned = toZonedTime(new Date(booking.created_at), timeZone);
-    const minDate = addDays(createdDateZoned, 10);
+    const todayDateZoned = toZonedTime(new Date(), timeZone);
+    const minDate = addDays(todayDateZoned, 10);
     const maxDate = addDays(minDate, 365);
     let start = new Date(minDate);
     let found = false;
