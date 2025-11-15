@@ -166,17 +166,28 @@ export default function AllCallsTable() {
   };
 
   const handleAccept = async () => {
-    if (!selectedOrder || !assignedDate) return;
+    if (!selectedOrder || !assignedDate) {
+      alert("Пожалуйста, выберите дату посещения.");
+      return;
+    }
+
     try {
-      await axios.post("/api/accept-booking", {
+      const res = await axios.post("/api/accept-booking", {
         bookingId: selectedOrder.id,
         colony_application_number: selectedOrder.colony_application_number,
         assignedDate,
       });
-      setModalType(null);
-      fetchData();
+
+      if (res.data.success) {
+        setModalType(null);
+        fetchData();
+      }
     } catch (err) {
-      console.error(err);
+      const message =
+        axios.isAxiosError(err)
+          ? err.response?.data?.error
+          : undefined;
+      alert(message || "Ошибка при принятии заявки");
     }
   };
 
@@ -286,58 +297,58 @@ export default function AllCallsTable() {
   };
 
   const handlePrintApprovedByDate = () => {
-  if (!approvedDate) {
-    alert("Выберите дату!");
-    return;
-  }
+    if (!approvedDate) {
+      alert("Выберите дату!");
+      return;
+    }
 
-  // Приводим approvedDate к началу дня в Tashkent
-  const selectedDate = new Date(approvedDate);
-  selectedDate.setHours(0, 0, 0, 0);
+    // Приводим approvedDate к началу дня в Tashkent
+    const selectedDate = new Date(approvedDate);
+    selectedDate.setHours(0, 0, 0, 0);
 
-  const filtered = tableData.filter((o) => {
-    if (o.status !== "approved" || !o.start_datetime) return false;
+    const filtered = tableData.filter((o) => {
+      if (o.status !== "approved" || !o.start_datetime) return false;
 
-    // Парсим start_datetime как дату в Tashkent
-    const startDate = new Date(o.start_datetime);
-    const startDateTashkent = new Date(
-      startDate.toLocaleString("en-US", { timeZone: "Asia/Tashkent" })
-    );
-    startDateTashkent.setHours(0, 0, 0, 0);
+      // Парсим start_datetime как дату в Tashkent
+      const startDate = new Date(o.start_datetime);
+      const startDateTashkent = new Date(
+        startDate.toLocaleString("en-US", { timeZone: "Asia/Tashkent" })
+      );
+      startDateTashkent.setHours(0, 0, 0, 0);
 
-    return startDateTashkent.getTime() === selectedDate.getTime();
-  });
+      return startDateTashkent.getTime() === selectedDate.getTime();
+    });
 
-  if (filtered.length === 0) {
-    alert("Нет подтвержденных заявлений на выбранную дату!");
-    return;
-  }
+    if (filtered.length === 0) {
+      alert("Нет подтвержденных заявлений на выбранную дату!");
+      return;
+    }
 
-  // Сортировка по дате и номеру заявления
-  const sorted = filtered.sort((a, b) => {
-    const dateA = new Date(a.start_datetime!).getTime();
-    const dateB = new Date(b.start_datetime!).getTime();
-    if (dateA !== dateB) return dateA - dateB;
-    return Number(a.colony_application_number ?? 0) - Number(b.colony_application_number ?? 0);
-  });
+    // Сортировка по дате и номеру заявления
+    const sorted = filtered.sort((a, b) => {
+      const dateA = new Date(a.start_datetime!).getTime();
+      const dateB = new Date(b.start_datetime!).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return Number(a.colony_application_number ?? 0) - Number(b.colony_application_number ?? 0);
+    });
 
-  const headers = ["№", "Заключенный", "Тип", "Посетители", "Телефон"];
+    const headers = ["№", "Заключенный", "Тип", "Посетители", "Телефон"];
 
-  const ws_data = [
-    [`Подтвержденные заявки на ${new Date(approvedDate).toLocaleDateString("ru-RU")}`],
-    [],
-    headers,
-    ...sorted.map((order) => [
-      String(order.colony_application_number ?? "-"),
-      order.prisoner_name,
-      getVisitTypeText(order.visit_type),
-      order.relatives.map((r) => r.full_name).join("\n"),
-      `+${order.phone_number}`,
-    ]),
-  ];
+    const ws_data = [
+      [`Подтвержденные заявки на ${new Date(approvedDate).toLocaleDateString("ru-RU")}`],
+      [],
+      headers,
+      ...sorted.map((order) => [
+        String(order.colony_application_number ?? "-"),
+        order.prisoner_name,
+        getVisitTypeText(order.visit_type),
+        order.relatives.map((r) => r.full_name).join("\n"),
+        `+${order.phone_number}`,
+      ]),
+    ];
 
-  createExcel(ws_data, `approved_bookings_${approvedDate}.xlsx`, "Approved");
-};
+    createExcel(ws_data, `approved_bookings_${approvedDate}.xlsx`, "Approved");
+  };
 
   const handleAcceptBatch = async () => {
     if (roomsCount <= 0) return;
@@ -504,11 +515,10 @@ export default function AllCallsTable() {
                 {tableData.map((order) => (
                   <TableRow
                     key={order.id}
-                    className={`${
-                      order.status === "canceled" || order.status === "rejected"
+                    className={`${order.status === "canceled" || order.status === "rejected"
                         ? "bg-red-200 dark:bg-[#240101]"
                         : "hover:bg-gray-100 dark:hover:bg-white/[0.05]"
-                    }`}
+                      }`}
                   >
                     <TableCell className="px-5 py-3 text-black dark:text-white cursor-pointer">
                       <div
@@ -553,8 +563,8 @@ export default function AllCallsTable() {
                           order.status === "approved"
                             ? "success"
                             : order.status === "pending"
-                            ? "warning"
-                            : "error"
+                              ? "warning"
+                              : "error"
                         }
                       >
                         {statusMap[order.status] || order.status}
@@ -604,8 +614,8 @@ export default function AllCallsTable() {
                     <TableCell className="px-5 py-3 text-black dark:text-white">
                       {order.start_datetime && order.status === "approved"
                         ? `${new Date(
-                            new Date(order.start_datetime).getTime()
-                          ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
+                          new Date(order.start_datetime).getTime()
+                        ).toLocaleDateString("ru-RU", { timeZone: "Asia/Tashkent" })}`
                         : "-"}
                     </TableCell>
                     <TableCell className="px-5 py-3">
