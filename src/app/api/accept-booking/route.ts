@@ -62,9 +62,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     let duration = booking.visit_type === "short" ? 1 : booking.visit_type === "long" ? 2 : 3;
     let finalVisitType: "short" | "long" | "extra" = booking.visit_type;
 
-    // === Минимум 10 дней от created_at ===
+    // === Минимум 0 дней от created_at ===
     const createdAtZoned = toZonedTime(new Date(booking.created_at), timeZone);
-    const minAllowedDate = addDays(createdAtZoned, 10);
+    const minAllowedDate = addDays(createdAtZoned, 0);
     minAllowedDate.setHours(0, 0, 0, 0);
 
     if (selectedDate < minAllowedDate) {
